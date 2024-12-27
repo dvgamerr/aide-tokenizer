@@ -1,10 +1,10 @@
 import { Elysia } from "elysia"
-import { pgmq } from "pgmq-js"
+import { Pgmq } from "pgmq-js"
 
 const app = new Elysia()
   .post('/webhook/:bot_id', async ({ body, params }) => {
     try {
-      const queue = await pgmq.queue('webhook-messages')
+      const queue = await Pgmq.queue('notice-queue')
       await queue.send({ ...body, bot_id: params.bot_id })
       return new Response(null, { status: 200 })
     } catch (error) {
