@@ -2,8 +2,12 @@
   "name": "app",
   "version": "1.0.50",
   "scripts": {
+    "prepare": "husky",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "bun run --watch src/index.ts"
+  },
+  "lint-staged": {
+    "*": "prettier --check . --write"
   },
   "dependencies": {
     "elysia": "latest",
@@ -11,9 +15,14 @@
     "pino": "^9.6.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.0",
     "@eslint/js": "^9.17.0",
     "bun-types": "latest",
-    "eslint": "^9.17.0"
+    "eslint": "^9.17.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.3.0",
+    "prettier": "^3.4.2"
   },
   "module": "src/index.js"
 }
