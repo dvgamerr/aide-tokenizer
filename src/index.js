@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia'
 // import { Pgmq } from 'pgmq-js'
-import { getChatId, preloadAnimation, pushMessage } from './providor/line' 
+import { getChatId, preloadAnimation, pushMessage } from './provider/line' 
 const logger = require('pino')()
 
 
