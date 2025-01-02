@@ -1,0 +1,25 @@
+{
+  "destination": "U1afe9a65184626853a0a8080cc30b26a",
+  "events": [
+    {
+      "type": "message",
+      "message": {
+        "type": "text",
+        "id": "541856985386057764",
+        "quoteToken": "_U5phNqQ0HYYlBZ7qFbqzeR1nZLzxNB070O7bI4BeVHr6fyBHRs_Z4w3v6W3XFSD4ZVTYOU3JbIJR5nA6mcnuZBB8LcMGqWMVBSoMtmzKiRxz-QPy6XjTtsj1mjSZwpckLn5rxCeobHR-aoQlF9TWg",
+        "text": "ทดสอบ"
+      },
+      "webhookEventId": "01JGJYYVCP7GZFVT1T8H9NFSVA",
+      "deliveryContext": {
+        "isRedelivery": false
+      },
+      "timestamp": 1735803235491,
+      "source": {
+        "type": "user",
+        "userId": "U3aec2fb5f0dcaef47361bd6a3e1c0e0a"
+      },
+      "replyToken": "1e932dbda93b497190a70891913802aa",
+      "mode": "active"
+    }
+  ]
+}

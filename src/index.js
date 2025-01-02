@@ -1,35 +1,71 @@
 import { Elysia } from 'elysia'
-// import { Pgmq } from 'pgmq-js'
+import { Pgmq } from 'pgmq-js'
 import { getChatId, preloadAnimation, pushMessage } from './provider/line' 
 const logger = require('pino')()
 
+logger.info('Connecting to Postgres...')
+const qName = 'notice_line'
+const pgmq = await Pgmq.new({
+  host: 'localhost',
+  database: 'postgres',
+  password: 'pgmq',
+  port: 5432,
+  user: 'postgres',
+  ssl: false,
+})
 
+await pgmq.queue.create(qName)
 
 const app = new Elysia()
   .post('/:channel/:bot_name', async ({ body, params }) => {
-    const logs = logger.child({ id: body.events[0].message.id, destination: body.destination, ...params })
+    if (!body?.events.length) return new Response(null, { status: 404 })
+
+    const msgId = body.events[0].message.id
     try {
-      logs.info('queue')
+      logger.info(`[${msgId}] preloading...`)
       const chatId = getChatId(body.events[0])
-      // const queue = await Pgmq.queue('notice-queue')
-      // await queue.send({ ...body, bot_id: params.bot_id })
-      logs.info('preloading...')
       preloadAnimation(chatId)
-      for await (const e of body.events) {
-        setTimeout(() => {
-          logs.info('push message...')
+
+      const queueId = await pgmq.msg.send(qName, { ...body, bot_id: params.bot_id }).catch((err) => {
+        logger.error(`Failed to send message`, err)
+      })
+      logger.info(`[${msgId}] queue: ${queueId}`)
+
+      await Promise.all(body.events.map(e => 
+        new Promise(resolve => setTimeout(() => {
+          logger.info(`[${msgId}] push message...`)
           pushMessage(chatId, `${e.message.text}`)
-        }, 5000)
-      }
+          resolve()
+        }, 5000))
+      ))
 
       return new Response(null, { status: 200 })
     } catch (error) {
-      console.error('Webhook processing error:', error)
+      logger.error(`[${msgId}] ${error}`)
       return new Response(null, { status: 500 })
     } finally {
-      logs.info('done')
+      logger.info(`[${msgId}] done`)
     }
   })
   .listen(process.env.PORT || 3000)
 
 logger.info(`running on ${app.server?.hostname}:${app.server?.port}`)
+
+// Graceful shutdown logic
+const gracefulShutdown = async () => {
+  logger.info('Shutting down...')
+  try {
+    await app.stop()
+    logger.info('stopped.')
+  } catch (err) {
+    logger.error('shutdown:', err)
+  }
+}
+
+const signals = ["SIGINT", "SIGTERM"]
+if (process.platform === "win32") signals.push("SIGBREAK")
+
+// Capture termination signals
+signals.forEach((signal) => {
+  process.on(signal, gracefulShutdown)
+})
