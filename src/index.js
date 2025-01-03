@@ -1,16 +1,21 @@
 import { Elysia } from 'elysia'
 import { Pgmq } from 'pgmq-js'
-import { getChatId, preloadAnimation, pushMessage } from './provider/line' 
+// import { getChatId, preloadAnimation, pushMessage } from './provider/line' 
 const logger = require('pino')()
 
-logger.info('Connecting to Postgres...')
+const PG_HOST = Bun.env.PG_HOST || 'localhost'
+const PG_USER = Bun.env.PG_USER || 'postgres'
+const PG_PASS = Bun.env.PG_PASS || ''
+const PG_DB = Bun.env.PG_DB || 'postgres'
+
+logger.info(`Connecting to pgmq (${PG_HOST})...`)
 const qName = 'notice_line'
 const pgmq = await Pgmq.new({
-  host: 'localhost',
-  database: 'postgres',
-  password: 'pgmq',
+  host: PG_HOST,
+  database: PG_DB,
+  password: PG_PASS,
   port: 5432,
-  user: 'postgres',
+  user: PG_USER,
   ssl: false,
 })
 
@@ -21,30 +26,27 @@ const app = new Elysia()
     if (!body?.events.length) return new Response(null, { status: 404 })
 
     const msgId = body.events[0].message.id
+    let queueId = 0
     try {
-      logger.info(`[${msgId}] preloading...`)
-      const chatId = getChatId(body.events[0])
-      preloadAnimation(chatId)
+      // const chatId = getChatId(body.events[0])
+      // preloadAnimation(chatId)
 
-      const queueId = await pgmq.msg.send(qName, { ...body, bot_id: params.bot_id }).catch((err) => {
-        logger.error(`Failed to send message`, err)
-      })
-      logger.info(`[${msgId}] queue: ${queueId}`)
+      queueId = await pgmq.msg.send(qName, { ...body, bot_id: params.bot_id })
 
-      await Promise.all(body.events.map(e => 
-        new Promise(resolve => setTimeout(() => {
-          logger.info(`[${msgId}] push message...`)
-          pushMessage(chatId, `${e.message.text}`)
-          resolve()
-        }, 5000))
-      ))
+      // await Promise.all(body.events.map(e => 
+      //   new Promise(resolve => setTimeout(() => {
+      //     logger.info(`[${msgId}] push message...`)
+      //     pushMessage(chatId, `${e.message.text}`)
+      //     resolve()
+      //   }, 5000))
+      // ))
 
-      return new Response(null, { status: 200 })
+      return new Response(null, { status: 201 })
     } catch (error) {
       logger.error(`[${msgId}] ${error}`)
       return new Response(null, { status: 500 })
     } finally {
-      logger.info(`[${msgId}] done`)
+      logger.info(`id:${msgId} queue:${queueId}`)
     }
   })
   .listen(process.env.PORT || 3000)
