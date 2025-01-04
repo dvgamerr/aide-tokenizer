@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia'
 import { Pgmq } from 'pgmq-js'
-// import { getChatId, preloadAnimation, pushMessage } from './provider/line' 
+// import { getChatId, preloadAnimation, pushMessage } from './provider/line'
 const logger = require('pino')()
 
 const PG_HOST = Bun.env.PG_HOST || 'localhost'
@@ -33,7 +33,7 @@ const app = new Elysia()
 
       queueId = await pgmq.msg.send(qName, { ...body, bot_id: params.bot_id })
 
-      // await Promise.all(body.events.map(e => 
+      // await Promise.all(body.events.map(e =>
       //   new Promise(resolve => setTimeout(() => {
       //     logger.info(`[${msgId}] push message...`)
       //     pushMessage(chatId, `${e.message.text}`)
@@ -64,8 +64,8 @@ const gracefulShutdown = async () => {
   }
 }
 
-const signals = ["SIGINT", "SIGTERM"]
-if (process.platform === "win32") signals.push("SIGBREAK")
+const signals = ['SIGINT', 'SIGTERM']
+if (process.platform === 'win32') signals.push('SIGBREAK')
 
 // Capture termination signals
 signals.forEach((signal) => {
