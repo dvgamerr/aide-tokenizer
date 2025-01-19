@@ -21,11 +21,6 @@ const pgmq = await Pgmq.new({
 
 await pgmq.queue.create(qName)
 
-const receivedMsg = await pgmq.msg.read(qName, 30).catch((err) => {
-  logger.error('No messages in the queue', err)
-})
-console.log(receivedMsg)
-
 const app = new Elysia()
 
 const valid_channels = ['line', 'discord']
