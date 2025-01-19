@@ -4,7 +4,9 @@
   "module": "src/index.js",
   "scripts": {
     "prepare": "husky",
-    "dev": "bun run --watch src/index.js"
+    "dev": "bun run --watch src/index.js",
+    "receiver": "bun ./queue-receiver/index.js | pino-pretty",
+    "sender": "bun ./queue-sender/index.js | pino-pretty"
   },
   "lint-staged": {
     "*": "prettier --check . --write",

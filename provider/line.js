@@ -6,14 +6,14 @@ export const getChatId = (e) =>
     ? e.source.userId
     : e.source.groupId || e.source.roomId
 
-export const preloadAnimation = async (chatId) => {
+export const preloadAnimation = async (chatId, loadingSeconds) => {
   const res = await fetch(`${LINE_API}/chat/loading/start`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ chatId, loadingSeconds: 20 }),
+    body: JSON.stringify({ chatId, loadingSeconds }),
   })
 
   const data = await res.json()
