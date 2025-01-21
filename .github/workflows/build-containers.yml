@@ -10,7 +10,98 @@ on:
 
 jobs:
   receiver:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_FILE: queue-receiver/Dockerfile
+      IMAGE_NAME: queue-receiver
+      KUBE_CONTAINER: deploy/page-403
+      KUBE_NAMESPACE: default
+      PLATFORMS: linux/amd64,linux/arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare 🔰
+        id: prepare
+        run: |
+          echo "kube_container=${KUBE_CONTAINER}" >> $GITHUB_OUTPUT
+          echo "kube_namespace=${KUBE_NAMESPACE}" >> $GITHUB_OUTPUT
+          echo "docker_image=${{env.REGISTRY}}/${{github.actor}}/$IMAGE_NAME" >> $GITHUB_OUTPUT
+
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          # # Strip "v" prefix from tag name
+          # [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=v$(echo $VERSION | sed -e 's/^v//')
+          # # Use Docker `latest` tag convention
+          # [ "$VERSION" == "main" ] && VERSION=latest
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+          echo "buildx_args=--platform $PLATFORMS \
+            --build-arg VERSION=${VERSION} \
+            --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            --build-arg VERSION=$VERSION \
+            --tag ${{env.REGISTRY}}/${{github.actor}}/$IMAGE_NAME:$VERSION --file $IMAGE_FILE ." >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx 📐
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log into registry ${{ env.REGISTRY }} 🔍
+        if: success() && !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request')
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker Push 📌
+        run: docker buildx build --output "type=image,push=${{ !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request') }}" ${{ steps.prepare.outputs.buildx_args }}
+
+      # - name: Sign the published Docker image
+      #   if: success() && !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request')
+      #   env:
+      #     TAGS: ${{ steps.meta.outputs.tags }}
+      #     DIGEST: ${{ steps.build-and-push.outputs.digest }}
+      #   run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+
+      # - name: Trigger deploy 🚀
+      #   if: success() && !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request')
+      #   uses: actions-hub/kubectl@master
+      #   env:
+      #     KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+      #   with:
+      #     args: --insecure-skip-tls-verify=true rollout restart ${{ steps.prepare.outputs.kube_container }} -n ${{ steps.prepare.outputs.kube_namespace }}
+
+      # - name: Status deployment 🔍
+      #   if: success() && !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request')
+      #   uses: actions-hub/kubectl@master
+      #   env:
+      #     KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+      #   with:
+      #     args: --insecure-skip-tls-verify=true rollout status --timeout=30s ${{ steps.prepare.outputs.kube_container }} -n ${{ steps.prepare.outputs.kube_namespace }}
+
+      # - name: Discord Alert
+      #   if: success() && !contains(github.event_name, 'pull_request')
+      #   uses: tsickert/discord-webhook@v5.3.0
+      #   with:
+      #     webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
+      #     content: "`${{ steps.prepare.outputs.kube_container }}` successfully rolled out image `${{ steps.prepare.outputs.docker_image }}:${{ steps.prepare.outputs.version }}`"
+
+      # - name: Discord Alert
+      #   continue-on-error: true
+      #   if: failure() && !contains(github.event_name, 'pull_request')
+      #   uses: tsickert/discord-webhook@v5.3.0
+      #   with:
+      #     webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
+      #     content: "❌ `${{ steps.prepare.outputs.kube_container }}` failure rolled."
+
+  sender:
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
