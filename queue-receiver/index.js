@@ -8,11 +8,12 @@ const clientConn = await pgClient()
 const clientQueue = await pgQueue()
 
 await clientConn.query(`
-  DROP TABLE IF EXISTS sessions;
   CREATE TABLE IF NOT EXISTS sessions (
-    chat_id VARCHAR(36) PRIMARY KEY,
+    chat_id VARCHAR(36),
+    notice_name VARCHAR(20) NOT NULL,
     session_id UUID NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (chat_id, notice_name)
   );
   
   CREATE TABLE IF NOT EXISTS notice (
@@ -75,25 +76,29 @@ app.post('/:channel/:bot_name', async ({ body, params }) => {
 
     // Query session_id by chatId
     let res = await clientConn.query(
-      'SELECT session_id FROM sessions WHERE chat_id = $1',
-      [chatId],
+      'SELECT session_id FROM sessions WHERE chat_id = $1 AND notice_name = $2',
+      [chatId, params.bot_name],
     )
     let sessionId = res.rows[0]?.session_id
     if (!res.rows.length) {
       // If not exists, generate random session_id and save to database
       sessionId = uuidv4()
       await clientConn.query(
-        'INSERT INTO sessions (chat_id, session_id) VALUES ($1, $2)',
-        [chatId, sessionId],
+        'INSERT INTO sessions (chat_id, notice_name, session_id) VALUES ($1, $2, $3)',
+        [chatId, params.bot_name, sessionId],
       )
     }
 
     // await preloadAnimation(chatId, waitAnimation)
-    queueId = await clientQueue.msg.send(queueName, {
-      ...body,
-      bot_id: params.bot_id,
-      session_id: sessionId,
-    })
+    for await (const event of body.events) {
+      queueId = await clientQueue.msg.send(queueName, {
+        timestamp: event.timestamp,
+        message: Object.assign(event.message, { replyToken: event.replyToken }),
+        bot_name: params.bot_name,
+        session_id: sessionId,
+      })
+    }
+
     logger.info(`id:${msgId} queue:${queueId}`)
 
     return new Response(null, { status: 201 })

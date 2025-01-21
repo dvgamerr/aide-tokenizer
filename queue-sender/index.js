@@ -1,10 +1,10 @@
-import { queueConn, queueName } from '../provider/db'
+import { pgQueue, queueName } from '../provider/db'
 // import { getChatId, preloadAnimation, pushMessage } from '../provider/line'
 
-await queueConn.queue.create(queueName)
+const clientQueue = await pgQueue()
 
 while (true) {
-  const sender = await queueConn.msg.read(queueName, 10)
+  const sender = await clientQueue.msg.read(queueName, 10)
   if (!sender) continue
 
   console.log(sender)
