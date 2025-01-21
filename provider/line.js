@@ -1,4 +1,3 @@
-const accessToken = Bun.env.LINE_TOKEN
 const LINE_API = 'https://api.line.me/v2/bot'
 
 export const getChatId = (e) =>
@@ -6,7 +5,7 @@ export const getChatId = (e) =>
     ? e.source.userId
     : e.source.groupId || e.source.roomId
 
-export const preloadAnimation = async (chatId, loadingSeconds) => {
+export const preloadAnimation = async (accessToken, chatId, loadingSeconds) => {
   const res = await fetch(`${LINE_API}/chat/loading/start`, {
     method: 'POST',
     headers: {
@@ -23,7 +22,7 @@ export const preloadAnimation = async (chatId, loadingSeconds) => {
   return data
 }
 
-export const pushMessage = async (userId, message) => {
+export const pushMessage = async (accessToken, userId, message) => {
   const res = await fetch(`${LINE_API}/message/push`, {
     method: 'POST',
     headers: {

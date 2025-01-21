@@ -34,8 +34,12 @@ export const pgQueue = async () => {
   const queueConn = await Pgmq.new(pgConn)
 
   let queueCreated = false
+  for await (const e of await queueConn.queue.list()) {
+    if (e === queueName) queueCreated = true
+  }
 
-  if (queueCreated) {
+  if (!queueCreated) {
     await queueConn.queue.create(queueName)
   }
+  return queueConn
 }

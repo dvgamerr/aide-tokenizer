@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia'
-import { getChatId } from '../provider/line'
+import { getChatId, pushMessage } from '../provider/line'
 import { pgClient, pgQueue, queueName } from '../provider/db'
 import pino from 'pino'
 import { v4 as uuidv4 } from 'uuid'
@@ -8,11 +8,18 @@ const clientConn = await pgClient()
 const clientQueue = await pgQueue()
 
 await clientConn.query(`
-  DROP TABLE IF EXISTS bot_sessions;
-  CREATE TABLE IF NOT EXISTS bot_sessions (
-    chat_id VARCHAR(255) PRIMARY KEY,
-    session_id UUID NOT NULL
-  )
+  DROP TABLE IF EXISTS sessions;
+  CREATE TABLE IF NOT EXISTS sessions (
+    chat_id VARCHAR(36) PRIMARY KEY,
+    session_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  
+  CREATE TABLE IF NOT EXISTS notice (
+    name VARCHAR(20) PRIMARY KEY,
+    provider VARCHAR(10) NOT NULL,
+    token VARCHAR(255) NOT NULL
+  );
 `)
 
 const logger = pino()
@@ -26,13 +33,15 @@ app.post('/_healthz', async () => {
   return new Response('☕')
 })
 
-const shortcut = (body, cmd) => {
+const isCommandIncluded = (body, cmd) => {
   for (const e of body.events) {
-    if (e.message.type !== 'text') continue
-    if (!e.message.text.trim().toLowerCase().includes(cmd)) continue
-    console.log(e)
+    if (
+      e.message.type === 'text' &&
+      e.message.text.trim().toLowerCase().includes(cmd)
+    )
+      return true
+    return false
   }
-  return true
 }
 
 app.post('/:channel/:bot_name', async ({ body, params }) => {
@@ -47,8 +56,20 @@ app.post('/:channel/:bot_name', async ({ body, params }) => {
   let queueId = 0
   try {
     const chatId = getChatId(body.events[0])
+    const notice = await clientConn.query(
+      'SELECT token FROM notice WHERE name = $1 AND provider = $2',
+      [params.bot_name, params.channel.toUpperCase()],
+    )
+    const accessToken = notice.rows[0]?.token
+    if (!accessToken) throw new Error("Bot doesn't have token")
 
-    if (shortcut(body, '/id')) {
+    if (isCommandIncluded(body, '/id')) {
+      await pushMessage(accessToken, chatId, `ID: ${chatId}`)
+      return new Response(null, { status: 200 })
+    }
+
+    if (isCommandIncluded(body, '/raw')) {
+      await pushMessage(accessToken, chatId, `ID: ${chatId}`)
       return new Response(null, { status: 200 })
     }
 
@@ -57,16 +78,14 @@ app.post('/:channel/:bot_name', async ({ body, params }) => {
       'SELECT session_id FROM sessions WHERE chat_id = $1',
       [chatId],
     )
-    let sessionId
-    if (res.rows.length === 0) {
+    let sessionId = res.rows[0]?.session_id
+    if (!res.rows.length) {
       // If not exists, generate random session_id and save to database
       sessionId = uuidv4()
       await clientConn.query(
         'INSERT INTO sessions (chat_id, session_id) VALUES ($1, $2)',
         [chatId, sessionId],
       )
-    } else {
-      sessionId = res.rows[0].session_id
     }
 
     // await preloadAnimation(chatId, waitAnimation)
@@ -75,13 +94,12 @@ app.post('/:channel/:bot_name', async ({ body, params }) => {
       bot_id: params.bot_id,
       session_id: sessionId,
     })
+    logger.info(`id:${msgId} queue:${queueId}`)
 
     return new Response(null, { status: 201 })
   } catch (error) {
     logger.error(`[${msgId}] ${error}`)
     return new Response(null, { status: 500 })
-  } finally {
-    logger.info(`id:${msgId} queue:${queueId}`)
   }
 })
 
