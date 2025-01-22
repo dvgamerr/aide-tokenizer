@@ -148,7 +148,7 @@ app.post('/:channel/:bot_name', async ({ headers, body, params }) => {
 
       if (isCommandIncluded(event, 'im')) {
         const profile = await userProfile(accessToken, chatId)
-        console.log({ profile })
+        delete cacheToken[cacheKey]
         if (event.message.text.trim().includes(apiKey)) {
           await clientConn.query("UPDATE users SET active = 't', profile = $3::json WHERE chat_id = $1 AND notice_name = $2", [
             chatId,

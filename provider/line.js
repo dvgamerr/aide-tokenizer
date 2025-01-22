@@ -1,8 +1,10 @@
 const LINE_API = 'https://api.line.me/v2/bot'
 
 export const getChatId = (e) => (e.source.type === 'user' ? e.source.userId : e.source.groupId || e.source.roomId)
+export const getUserId = (e) => e.source.userId
 
 export const preloadAnimation = async (accessToken, chatId, loadingSeconds) => {
+  if (!chatId.match(/^U/)) return
   const res = await fetch(`${LINE_API}/chat/loading/start`, {
     method: 'POST',
     headers: {
