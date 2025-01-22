@@ -59,14 +59,39 @@ const isCommandIncluded = (event, cmd) => {
   return false
 }
 
-app.put('/:channel/:bot_name', async ({ body, params }) => {
+app.put('/:channel/:botName', async ({ headers, body, params, query }) => {
   try {
-    const notice = await clientConn.query('SELECT COUNT(*) FROM notice WHERE name = $1 AND provider = $2', [
-      params.bot_name,
-      params.channel.toUpperCase(),
-    ])
+    let apiKey = query.apiKey
+    let text = query?.text
 
-    console.log({ body, notice })
+    const credentials = (headers['authorization'] || '').split(' ')
+    if (credentials && credentials.length == 2) apiKey = Buffer.from(credentials[1], 'base64').toString('ascii')
+    if (!apiKey) return new Response(null, { status: 401 })
+    if (!text && !body?.text && !body?.messages && !body?.messages?.length) return new Response(null, { status: 400 })
+    if (!body.type) body.type = 'text'
+    const notice = await clientConn.query(
+      `
+      SELECT u.chat_id
+      FROM users u
+      INNER JOIN notice n ON n.name = u.notice_name
+      WHERE u.active = 't' AND u.api_key = $1 AND u.notice_name = $2 AND provider = $3
+    `,
+      [apiKey, params.botName, params.channel.toUpperCase()],
+    )
+
+    if (!notice.rows.length) return new Response(null, { status: 401 })
+
+    const chatId = notice.rows[0]?.chat_id
+
+    const queueId = await clientQueue.msg.send(queueName, {
+      chatId: chatId,
+      message: body?.messages ? body.messages : [text ? { type: 'text', text } : body],
+      botName: params.botName,
+      timestamp: +new Date(),
+      sessionId: null,
+    })
+
+    logger.info(`${params.botName}:${chatId} [queue:${queueId}]`)
 
     return new Response(null, { status: 201 })
   } catch (ex) {
@@ -77,20 +102,19 @@ app.put('/:channel/:bot_name', async ({ body, params }) => {
 
 const cacheToken = {}
 
-app.post('/:channel/:bot_name', async ({ headers, body, params }) => {
+app.post('/:channel/:botName', async ({ headers, body, params }) => {
   if (
     !headers['x-line-signature'] ||
     !valid_channels.includes(params.channel.toLowerCase()) ||
-    !valid_bots.includes(params.bot_name.toLowerCase()) ||
+    !valid_bots.includes(params.botName.toLowerCase()) ||
     !body?.events.length
   )
     return new Response(null, { status: 404 })
 
   let queueId = 0
   const chatId = getChatId(body.events[0])
-  const msgId = body.events[0].message.id
   try {
-    const cacheKey = `${params.bot_name}_${chatId}`
+    const cacheKey = `${params.botName}_${chatId}`
     if (!cacheToken[cacheKey]) {
       const notice = await clientConn.query(
         `
@@ -100,7 +124,7 @@ app.post('/:channel/:bot_name', async ({ headers, body, params }) => {
         LEFT JOIN users u ON n.name = u.notice_name AND u.chat_id = $1
         WHERE name = $2 AND provider = $3
       `,
-        [chatId, params.bot_name, params.channel.toUpperCase()],
+        [chatId, params.botName, params.channel.toUpperCase()],
       )
       if (!notice.rows.length) throw new Error("Bot doesn't have token")
       cacheToken[cacheKey] = {
@@ -111,7 +135,7 @@ app.post('/:channel/:bot_name', async ({ headers, body, params }) => {
       }
 
       if (!cacheToken[cacheKey].apiKey) {
-        await clientConn.query('INSERT INTO users (chat_id, notice_name) VALUES ($1, $2)', [chatId, params.bot_name])
+        await clientConn.query('INSERT INTO users (chat_id, notice_name) VALUES ($1, $2)', [chatId, params.botName])
       }
     }
     const { accessToken, clientSecret, apiKey, isAdmin } = cacheToken[cacheKey]
@@ -123,14 +147,14 @@ app.post('/:channel/:bot_name', async ({ headers, body, params }) => {
     }
 
     // Query session_id by chatId
-    let res = await clientConn.query('SELECT session_id FROM sessions WHERE chat_id = $1 AND notice_name = $2', [chatId, params.bot_name])
+    let res = await clientConn.query('SELECT session_id FROM sessions WHERE chat_id = $1 AND notice_name = $2', [chatId, params.botName])
     let sessionId = res.rows[0]?.session_id
     if (!res.rows.length) {
       // If not exists, generate random session_id and save to database
       sessionId = uuidv4()
       await clientConn.query('INSERT INTO sessions (chat_id, notice_name, session_id) VALUES ($1, $2, $3)', [
         chatId,
-        params.bot_name,
+        params.botName,
         sessionId,
       ])
     }
@@ -152,7 +176,7 @@ app.post('/:channel/:bot_name', async ({ headers, body, params }) => {
         if (event.message.text.trim().includes(apiKey)) {
           await clientConn.query("UPDATE users SET active = 't', profile = $3::json WHERE chat_id = $1 AND notice_name = $2", [
             chatId,
-            params.bot_name,
+            params.botName,
             JSON.stringify(profile),
           ])
           await pushMessage(accessToken, chatId, `Hi, ${profile.displayName}`)
@@ -163,14 +187,15 @@ app.post('/:channel/:bot_name', async ({ headers, body, params }) => {
       }
 
       queueId = await clientQueue.msg.send(queueName, {
+        chatId: chatId,
         timestamp: event.timestamp,
         message: Object.assign(event.message, { replyToken: event.replyToken }),
-        bot_name: params.bot_name,
-        session_id: sessionId,
+        botName: params.botName,
+        sessionId,
       })
     }
 
-    logger.info(`id:${msgId}${queueId ? ` queue:${queueId}` : ', ok'}`)
+    logger.info(`${params.botName}:${chatId}${queueId ? ` [queue:${queueId}]` : ''}`)
 
     return new Response(null, { status: 201 })
   } catch (error) {
