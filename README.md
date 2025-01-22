@@ -1,20 +1,19 @@
-# Elysia with Bun runtime
+# Aide Tokenizer
 
-## Getting Started
+This project consists of two main components: `queue-sender` and `queue-receiver`. These components work together to handle message queuing and processing.
 
-To get started with this template, simply paste this command into your terminal:
+## Environment Variables
 
-```bash
-bun create elysia ./elysia-example
-```
+- `PORT`: The port on which the server will run (default: 3000).
 
-## Development
+## Setup
 
-To start the development server run:
+1. Ensure you have PostgreSQL installed and running.
+2. Create the necessary tables by running the `queue-receiver` script.
+3. Start the `queue-sender` script to begin processing messages.
+4. Start the `queue-receiver` server to handle incoming messages.
 
-```bash
-docker run -d --name pgmq -e POSTGRES_PASSWORD=pgmq -p 5432:5432 quay.io/tembo/pgmq-pg:latest
-bun run dev
-```
+## Usage
 
-Open http://localhost:3000/ with your browser to see the result.
+- Send a POST request to `/:channel/:bot_name` with the appropriate message body to queue a message.
+- Use the `/id` and `/raw` commands within the message body to get specific responses.
