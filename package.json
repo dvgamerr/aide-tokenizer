@@ -13,9 +13,6 @@
     "*.js": "eslint --fix"
   },
   "dependencies": {
-    "@langchain/core": "^0.3.32",
-    "@langchain/langgraph": "^0.2.41",
-    "@langchain/openai": "^0.3.17",
     "elysia": "latest",
     "pg": "^8.13.1",
     "pgmq-js": "^1.3.0",
