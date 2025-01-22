@@ -1,29 +1,5 @@
 {
   "files.eol": "\n",
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "editor.formatOnSave": true,
-  "sqltools.connections": [
-    {
-      "previewLimit": 50,
-      "server": "localhost",
-      "port": 5432,
-      "driver": "PostgreSQL",
-      "name": "pgmq",
-      "group": "aide",
-      "database": "postgres",
-      "username": "postgres",
-      "password": "pgmq"
-    },
-    {
-      "previewLimit": 50,
-      "server": "localhost",
-      "port": 5432,
-      "driver": "PostgreSQL",
-      "name": "agent_popcorn",
-      "group": "aide",
-      "database": "agent_popcorn",
-      "username": "postgres",
-      "password": "pgmq"
-    }
-  ]
+  "editor.formatOnSave": true
 }
