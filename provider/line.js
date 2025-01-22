@@ -39,3 +39,17 @@ export const pushMessage = async (accessToken, userId, message) => {
 
   return data
 }
+export const userProfile = async (accessToken, userId) => {
+  const res = await fetch(`${LINE_API}/profile/${userId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+
+  const data = await res.json()
+  if (!res.ok) throw new Error(JSON.stringify(data) || `Failed ${res.statusText} (${res.status})`)
+
+  return data
+}

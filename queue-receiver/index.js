@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia'
-import { getChatId, pushMessage, preloadAnimation } from '../provider/line'
+import { getChatId, pushMessage, preloadAnimation, userProfile } from '../provider/line'
 import { pgClient, pgQueue, queueName } from '../provider/db'
 import pino from 'pino'
 import { v4 as uuidv4 } from 'uuid'
@@ -9,30 +9,36 @@ const clientConn = await pgClient()
 const clientQueue = await pgQueue()
 
 await clientConn.query(`
-  CREATE TABLE IF NOT EXISTS users (
-    chat_id VARCHAR(36),
-    notice_name VARCHAR(20) NOT NULL,
-    api_key UUID DEFAULT gen_random_uuid(),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    active BOOLEAN DEFAULT FALSE,
-    PRIMARY KEY (chat_id, notice_name),
-    FOREIGN KEY (notice_name) REFERENCES notice(name)
+  CREATE TABLE IF NOT EXISTS "public"."users" (
+    "chat_id" varchar(36) NOT NULL,
+    "notice_name" varchar(20) NOT NULL,
+    "api_key" uuid NOT NULL DEFAULT gen_random_uuid(),
+    "created_at" timestamptz NOT NULL DEFAULT now(),
+    "active" bool NOT NULL DEFAULT false,
+    "admin" bool NOT NULL DEFAULT false,
+    CONSTRAINT "users_notice_name_fkey" FOREIGN KEY ("notice_name") REFERENCES "public"."notice"("name"),
+    PRIMARY KEY ("chat_id","notice_name")
   );
 
-  CREATE TABLE IF NOT EXISTS sessions (
-    chat_id VARCHAR(36),
-    notice_name VARCHAR(20) NOT NULL,
-    session_id UUID DEFAULT gen_random_uuid(),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (chat_id, notice_name),
-    FOREIGN KEY (notice_name) REFERENCES notice(name)
+  CREATE TABLE IF NOT EXISTS "public"."sessions" (
+    "chat_id" varchar(36) NOT NULL,
+    "notice_name" varchar(20) NOT NULL,
+    "session_id" uuid DEFAULT gen_random_uuid(),
+    "created_at" timestamptz DEFAULT now(),
+    CONSTRAINT "sessions_notice_name_fkey" FOREIGN KEY ("notice_name") REFERENCES "public"."notice"("name"),
+    PRIMARY KEY ("chat_id","notice_name")
   );
-  
-  CREATE TABLE IF NOT EXISTS notice (
-    name VARCHAR(20) PRIMARY KEY,
-    provider VARCHAR(10) NOT NULL,
-    access_token VARCHAR(200) NOT NULL,
-    client_secret VARCHAR(50) NOT NULL
+    
+  CREATE TABLE IF NOT EXISTS "public"."users" (
+    "chat_id" varchar(36) NOT NULL,
+    "notice_name" varchar(20) NOT NULL,
+    "api_key" uuid NOT NULL DEFAULT gen_random_uuid(),
+    "created_at" timestamptz NOT NULL DEFAULT now(),
+    "active" bool NOT NULL DEFAULT false,
+    "admin" bool NOT NULL DEFAULT false,
+    "profile" json DEFAULT '{}'::json,
+    CONSTRAINT "users_notice_name_fkey" FOREIGN KEY ("notice_name") REFERENCES "public"."notice"("name"),
+    PRIMARY KEY ("chat_id","notice_name")
   );
 `)
 
@@ -48,7 +54,8 @@ app.post('/_healthz', async () => {
 })
 
 const isCommandIncluded = (event, cmd) => {
-  if (event.message.type === 'text' && event.message.text.trim().toLowerCase() === `/${cmd}`) return true
+  const msg = event.message.text.trim()
+  if (event.message.type === 'text' && msg.match(new RegExp(`^/${cmd}`, 'ig'))) return true
   return false
 }
 
@@ -84,12 +91,11 @@ app.post('/:channel/:bot_name', async ({ headers, body, params }) => {
   const msgId = body.events[0].message.id
   try {
     const cacheKey = `${params.bot_name}_${chatId}`
-    let accessToken, clientSecret, apiKey
     if (!cacheToken[cacheKey]) {
       const notice = await clientConn.query(
         `
         SELECT
-          access_token, client_secret, api_key
+          access_token, client_secret, api_key, admin
         FROM notice n
         LEFT JOIN users u ON n.name = u.notice_name AND u.chat_id = $1
         WHERE name = $2 AND provider = $3
@@ -97,19 +103,18 @@ app.post('/:channel/:bot_name', async ({ headers, body, params }) => {
         [chatId, params.bot_name, params.channel.toUpperCase()],
       )
       if (!notice.rows.length) throw new Error("Bot doesn't have token")
-      accessToken = notice.rows[0]?.access_token
-      clientSecret = notice.rows[0]?.client_secret
-      apiKey = notice.rows[0]?.api_key
-
-      if (!apiKey) {
-        await clientConn.query('INSERT INTO users (chat_id, notice_name) VALUES ($1, $2)', [chatId, params.bot_name])
+      cacheToken[cacheKey] = {
+        accessToken: notice.rows[0]?.access_token,
+        clientSecret: notice.rows[0]?.client_secret,
+        apiKey: notice.rows[0]?.api_key,
+        isAdmin: notice.rows[0]?.admin,
       }
 
-      cacheToken[cacheKey] = { accessToken, clientSecret }
+      if (!cacheToken[cacheKey].apiKey) {
+        await clientConn.query('INSERT INTO users (chat_id, notice_name) VALUES ($1, $2)', [chatId, params.bot_name])
+      }
     }
-    accessToken = cacheToken[cacheKey].accessToken
-    clientSecret = cacheToken[cacheKey].clientSecret
-
+    const { accessToken, clientSecret, apiKey, isAdmin } = cacheToken[cacheKey]
     await preloadAnimation(accessToken, chatId, waitAnimation)
 
     const lineSignature = headers['x-line-signature']
@@ -131,13 +136,29 @@ app.post('/:channel/:bot_name', async ({ headers, body, params }) => {
     }
 
     for await (const event of body.events) {
-      if (isCommandIncluded(event, 'id')) {
-        await pushMessage(accessToken, chatId, `ID: ${chatId}`)
-        continue
-      } else if (isCommandIncluded(event, 'raw')) {
-        await pushMessage(accessToken, chatId, '```\n' + JSON.stringify(event) + '\n```')
-        continue
-      } else if (isCommandIncluded(event, 'im')) {
+      if (isAdmin) {
+        if (isCommandIncluded(event, 'id')) {
+          await pushMessage(accessToken, chatId, `ID: ${chatId}`)
+          continue
+        } else if (isCommandIncluded(event, 'raw')) {
+          await pushMessage(accessToken, chatId, '```\n' + JSON.stringify(event, null, 2) + '\n```')
+          continue
+        }
+      }
+
+      if (isCommandIncluded(event, 'im')) {
+        const profile = await userProfile(accessToken, chatId)
+        console.log({ profile })
+        if (event.message.text.trim().includes(apiKey)) {
+          await clientConn.query("UPDATE users SET active = 't', profile = $3::json WHERE chat_id = $1 AND notice_name = $2", [
+            chatId,
+            params.bot_name,
+            JSON.stringify(profile),
+          ])
+          await pushMessage(accessToken, chatId, `Hi, ${profile.displayName}`)
+        } else {
+          await pushMessage(accessToken, chatId, `${profile.displayName}, Nope! 😅 `)
+        }
         continue
       }
 
