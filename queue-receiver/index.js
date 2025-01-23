@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia'
 import { getChatId, preloadAnimation, userProfile } from '../provider/line'
 import { pgClient, pgQueue, queueName } from '../provider/db'
-import pino from 'pino'
+import { logger } from '../provider/logger'
 import { v4 as uuidv4 } from 'uuid'
 const crypto = require('crypto')
 
@@ -42,7 +42,6 @@ await clientConn.query(`
   );
 `)
 
-const logger = pino()
 const app = new Elysia()
 
 const valid_channels = ['line', 'discord']

@@ -1,10 +1,9 @@
-import pino from 'pino'
-
 import flexChatId from '../provider/flex/id'
 import { pgQueue, pgClient, queueName } from '../provider/db'
 import { pushMessage } from '../provider/line'
 
-const logger = pino()
+import { logger } from '../provider/logger'
+
 const clientConn = await pgClient()
 const clientQueue = await pgQueue()
 
@@ -46,7 +45,7 @@ while (true) {
   if (Bun.env.NODE_ENV === 'production') {
     await clientQueue.msg.archive(queueName, msgId)
   } else {
-    logger.info(JSON.stringify({ msgId, chatId, botName, messages, sessionId }, null, 2))
+    logger.debug(JSON.stringify({ msgId, chatId, botName, messages, sessionId }, null, 2))
     await clientQueue.msg.delete(queueName, msgId)
   }
 }
