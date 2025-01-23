@@ -1,3 +1,6 @@
+import pino from 'pino'
+
+const logger = pino()
 const LINE_API = 'https://api.line.me/v2/bot'
 
 export const getChatId = (e) => (e.source.type === 'user' ? e.source.userId : e.source.groupId || e.source.roomId)
@@ -15,28 +18,33 @@ export const preloadAnimation = async (accessToken, chatId, loadingSeconds) => {
   })
 
   const data = await res.json()
-  if (!res.ok) throw new Error(JSON.stringify(data) || `Failed ${res.statusText} (${res.status})`)
+  if (!res.ok) {
+    logger.debug({ res, data })
+    throw new Error(`Failed ${res.statusText} (${res.status})`)
+  }
 
   return data
 }
 
-export const pushMessage = async (accessToken, userId, message) => {
+export const pushMessage = async (accessToken, chatId, messages) => {
+  const payload = {
+    to: chatId,
+    messages: [typeof messages === 'string' ? { type: 'text', text: messages } : messages],
+  }
+
   const res = await fetch(`${LINE_API}/message/push`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({
-      to: userId,
-      messages: [{ type: 'text', text: message }],
-    }),
+    body: JSON.stringify(payload),
   })
 
   const data = await res.json()
   if (!res.ok) {
-    console.log({ res, data })
-    throw new Error(data || `Failed ${res.statusText} (${res.status})`)
+    logger.debug({ res, data, payload: payload })
+    throw new Error(`Failed ${res.statusText} (${res.status})`)
   }
 
   return data
@@ -51,7 +59,10 @@ export const userProfile = async (accessToken, userId) => {
   })
 
   const data = await res.json()
-  if (!res.ok) throw new Error(JSON.stringify(data) || `Failed ${res.statusText} (${res.status})`)
+  if (!res.ok) {
+    logger.debug({ res, data })
+    throw new Error(`Failed ${res.statusText} (${res.status})`)
+  }
 
   return data
 }

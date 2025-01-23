@@ -54,7 +54,8 @@ app.post('/_healthz', async () => {
 })
 
 const isCommandIncluded = (event, cmd) => {
-  if (event.message.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}`, 'ig'))) return true
+  console.log({ event })
+  if (event?.message?.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}`, 'ig'))) return true
   return false
 }
 
@@ -107,6 +108,10 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
     !body?.events.length
   )
     return new Response(null, { status: 404 })
+  if (body.events[0].type == 'postback') {
+    console.log(body.events)
+    return new Response(null, { status: 201 })
+  }
 
   const chatId = getChatId(body.events[0])
   try {
@@ -135,6 +140,7 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
       }
     }
     const { accessToken, clientSecret, apiKey, isAdmin } = cacheToken[cacheKey]
+
     await preloadAnimation(accessToken, chatId, waitAnimation)
 
     const lineSignature = headers['x-line-signature']
@@ -161,12 +167,14 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
     for await (const event of body.events) {
       if (isAdmin) {
         if (isCommandIncluded(event, 'raw')) {
-          await queueSend(sessionId, chatId, params.botName, [{ type: 'template', name: 'get-raw', text: JSON.stringify(event, null, 2) }])
+          await queueSend(sessionId, chatId, params.botName, [
+            { type: 'template', name: 'get-raw', text: JSON.stringify(event, null, 2), sender: { name: 'admin' } },
+          ])
           continue
         }
       }
       if (isCommandIncluded(event, 'id')) {
-        await queueSend(sessionId, chatId, params.botName, [{ type: 'template', name: 'get-id', chatId }])
+        await queueSend(sessionId, chatId, params.botName, [{ type: 'template', name: 'get-id', chatId, sender: { name: 'admin' } }])
         continue
       } else if (isCommandIncluded(event, 'im')) {
         const profile = await userProfile(accessToken, chatId)
@@ -177,13 +185,18 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
             params.botName,
             JSON.stringify(profile),
           ])
-          await queueSend(sessionId, chatId, params.botName, [{ type: 'text', text: `Hi, ${profile.displayName}` }])
+          await queueSend(sessionId, chatId, params.botName, [
+            { type: 'text', text: `Hi, ${profile.displayName}`, sender: { name: 'admin' } },
+          ])
         } else {
-          await queueSend(sessionId, chatId, params.botName, [{ type: 'text', text: `${profile.displayName}, Nope! 😅 ` }])
+          await queueSend(sessionId, chatId, params.botName, [
+            { type: 'text', text: `${profile.displayName}, Nope! 😅 `, sender: { name: 'admin' } },
+          ])
         }
         continue
       }
       timestamp = event.timestamp
+
       messages.push(Object.assign(event.message, { replyToken: event.replyToken }))
     }
 
