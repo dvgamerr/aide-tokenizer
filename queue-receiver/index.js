@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia'
-import { getChatId, pushMessage, preloadAnimation, userProfile } from '../provider/line'
+import { getChatId, preloadAnimation, userProfile } from '../provider/line'
 import { pgClient, pgQueue, queueName } from '../provider/db'
 import pino from 'pino'
 import { v4 as uuidv4 } from 'uuid'
@@ -58,6 +58,12 @@ const isCommandIncluded = (event, cmd) => {
   return false
 }
 
+const queueSend = async (sessionId, chatId, botName, messages = [], timestamp) => {
+  const queueId = await clientQueue.msg.send(queueName, { chatId, messages, botName, timestamp: timestamp || +new Date(), sessionId })
+  logger.info(`[queue:${queueId}] ${botName}:${chatId}`)
+  return queueId
+}
+
 app.put('/:channel/:botName', async ({ headers, body, params, query }) => {
   try {
     let apiKey = query.apiKey
@@ -82,15 +88,7 @@ app.put('/:channel/:botName', async ({ headers, body, params, query }) => {
 
     const chatId = notice.rows[0]?.chat_id
 
-    const queueId = await clientQueue.msg.send(queueName, {
-      chatId: chatId,
-      messages: body?.messages ? body.messages : [text ? { type: 'text', text } : body],
-      botName: params.botName,
-      timestamp: +new Date(),
-      sessionId: null,
-    })
-
-    logger.info(`${params.botName}:${chatId} [queue:${queueId}]`)
+    await queueSend(null, chatId, params.botName, body?.messages ? body.messages : [text ? { type: 'text', text } : body])
 
     return new Response(null, { status: 201 })
   } catch (ex) {
@@ -110,7 +108,6 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
   )
     return new Response(null, { status: 404 })
 
-  let queueId = 0
   const chatId = getChatId(body.events[0])
   try {
     const cacheKey = `${params.botName}_${chatId}`
@@ -158,24 +155,20 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
       ])
     }
 
-    const payload = {
-      chatId: chatId,
-      timestamp: 0,
-      messages: [],
-      botName: params.botName,
-      sessionId,
-    }
+    let timestamp = 0,
+      messages = []
+
     for await (const event of body.events) {
       if (isAdmin) {
-        if (isCommandIncluded(event, 'id')) {
-          await pushMessage(accessToken, chatId, `ID: ${chatId}`)
-          continue
-        } else if (isCommandIncluded(event, 'raw')) {
-          await pushMessage(accessToken, chatId, '```\n' + JSON.stringify(event, null, 2) + '\n```')
+        if (isCommandIncluded(event, 'raw')) {
+          await queueSend(sessionId, chatId, params.botName, [{ type: 'template', name: 'get-raw', text: JSON.stringify(event, null, 2) }])
           continue
         }
       }
-      if (isCommandIncluded(event, 'im')) {
+      if (isCommandIncluded(event, 'id')) {
+        await queueSend(sessionId, chatId, params.botName, [{ type: 'template', name: 'get-id', chatId }])
+        continue
+      } else if (isCommandIncluded(event, 'im')) {
         const profile = await userProfile(accessToken, chatId)
         delete cacheToken[cacheKey]
         if (event.message.text.trim().includes(apiKey)) {
@@ -184,20 +177,17 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
             params.botName,
             JSON.stringify(profile),
           ])
-          await pushMessage(accessToken, chatId, `Hi, ${profile.displayName}`)
+          await queueSend(sessionId, chatId, params.botName, [{ type: 'text', text: `Hi, ${profile.displayName}` }])
         } else {
-          await pushMessage(accessToken, chatId, `${profile.displayName}, Nope! 😅 `)
+          await queueSend(sessionId, chatId, params.botName, [{ type: 'text', text: `${profile.displayName}, Nope! 😅 ` }])
         }
         continue
       }
-      payload.timestamp = event.timestamp
-      payload.messages.push(Object.assign(event.message, { replyToken: event.replyToken }))
+      timestamp = event.timestamp
+      messages.push(Object.assign(event.message, { replyToken: event.replyToken }))
     }
 
-    if (payload.messages.length) {
-      queueId = await clientQueue.msg.send(queueName, payload)
-      logger.info(`${params.botName}:${chatId}${queueId ? ` [queue:${queueId}]` : ''}`)
-    }
+    if (messages.length) await queueSend(sessionId, chatId, params.botName, messages, timestamp)
 
     return new Response(null, { status: 201 })
   } catch (error) {

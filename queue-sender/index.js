@@ -15,7 +15,7 @@ while (true) {
   if (Bun.env.NODE_ENV === 'production') {
     await clientQueue.msg.archive(queueName, msgId)
   } else {
-    console.log(message)
+    logger.info(JSON.stringify(message, null, 2))
     await clientQueue.msg.delete(queueName, msgId)
   }
 }
