@@ -53,7 +53,6 @@ app.post('/_healthz', async () => {
 })
 
 const isCommandIncluded = (event, cmd) => {
-  console.log({ event })
   if (event?.message?.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}`, 'ig'))) return true
   return false
 }
@@ -108,7 +107,6 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
   )
     return new Response(null, { status: 404 })
   if (body.events[0].type == 'postback') {
-    console.log(body.events)
     return new Response(null, { status: 201 })
   }
 

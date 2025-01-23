@@ -36,7 +36,7 @@ while (true) {
 
       await pushMessage(accessToken, chatId, [{ type: 'flex', altText: `ID: ${chatId}`, contents: flexTemplate[messages[0].name](chatId) }])
     } else {
-      await pushMessage(accessToken, chatId, messages)
+      // await pushMessage(accessToken, chatId, messages)
     }
   } catch (ex) {
     logger.error(ex)
