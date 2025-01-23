@@ -31,14 +31,13 @@ while (true) {
     )
     if (!notice.rows.length) throw new Error(`No access token for ${botName}:${chatId}`)
     const accessToken = notice.rows[0]?.access_token
-    for (const msg of messages) {
-      if (msg.type === 'template') {
-        if (!flexTemplate[msg.name]) continue
 
-        const contents = flexTemplate[msg.name](msg.chatId)
+    if (messages[0]?.type === 'template') {
+      if (!flexTemplate[messages[0]?.name]) continue
 
-        await pushMessage(accessToken, msg.chatId, { type: 'flex', altText: `ID: ${msg.chatId}`, contents })
-      }
+      await pushMessage(accessToken, chatId, [{ type: 'flex', altText: `ID: ${chatId}`, contents: flexTemplate[messages[0].name](chatId) }])
+    } else {
+      await pushMessage(accessToken, chatId, messages)
     }
   } catch (ex) {
     logger.error(ex)

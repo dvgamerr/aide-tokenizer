@@ -168,7 +168,7 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
       if (isAdmin) {
         if (isCommandIncluded(event, 'raw')) {
           await queueSend(sessionId, chatId, params.botName, [
-            { type: 'template', name: 'get-raw', text: JSON.stringify(event, null, 2), sender: { name: 'admin' } },
+            { type: 'text', text: JSON.stringify(event, null, 2), sender: { name: 'admin' } },
           ])
           continue
         }
