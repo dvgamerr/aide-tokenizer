@@ -19,10 +19,19 @@ const pgConn = {
   ssl: false,
 }
 
+export let connClient = false
+export let connQueue = false
+
 export const pgClient = async () => {
   logger.info(` - database '${PG_DB}' connecting...`)
   const clientConn = new Client(pgConn)
   await clientConn.connect()
+  connClient = true
+
+  clientConn.on('error', (err) => {
+    logger.error('something bad has happened!', err.stack)
+    connClient = false
+  })
 
   return clientConn
 }
