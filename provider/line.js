@@ -27,7 +27,7 @@ export const preloadAnimation = async (accessToken, chatId, loadingSeconds) => {
 export const pushMessage = async (accessToken, chatId, messages) => {
   const payload = {
     to: chatId,
-    messages: typeof messages === 'string' ? { type: 'text', text: messages } : messages,
+    messages: typeof messages === 'string' ? [{ type: 'text', text: messages }] : messages,
   }
 
   const res = await fetch(`${LINE_API}/message/push`, {
