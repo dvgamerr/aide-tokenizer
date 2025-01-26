@@ -20,9 +20,9 @@ app.post('/_healthz', async () => {
 })
 
 const isCommandIncluded = (event, cmd) => {
-  if (event?.message?.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}`, 'ig'))) return true
-  return false
+  return event?.message?.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}`, 'ig'))
 }
+
 const queueSend = async (options, messages = []) => {
   const queueId = await clientQueue.msg.send(queueName, { ...options, messages })
   logger.info(`[queue:${queueId}] ${options.botName}:${options.displayName}`)
@@ -34,10 +34,11 @@ app.put('/:channel/:botName', async ({ headers, body, params, query }) => {
     let text = query?.text
 
     const credentials = (headers['authorization'] || '').split(' ')
-    if (credentials && credentials.length == 2) apiKey = Buffer.from(credentials[1], 'base64').toString('ascii')
+    if (credentials.length === 2) apiKey = Buffer.from(credentials[1], 'base64').toString('ascii')
     if (!apiKey) return new Response(null, { status: 401 })
-    if (!text && !body?.text && !body?.messages && !body?.messages?.length) return new Response(null, { status: 400 })
+    if (!text && !body?.text && !body?.messages?.length) return new Response(null, { status: 400 })
     if (!body.type) body.type = 'text'
+
     const notice = await clientConn.query(
       `
       SELECT 
@@ -52,10 +53,7 @@ app.put('/:channel/:botName', async ({ headers, body, params, query }) => {
 
     if (!notice.rows.length) return new Response(null, { status: 401 })
 
-    const chatId = notice.rows[0]?.chat_id
-    const proxyConfig = notice.rows[0]?.proxy
-    const accessToken = notice.rows[0]?.access_token
-    const displayName = notice.rows[0]?.display_name
+    const { chat_id: chatId, proxy: proxyConfig, access_token: accessToken, display_name: displayName } = notice.rows[0]
 
     await queueSend(
       {
