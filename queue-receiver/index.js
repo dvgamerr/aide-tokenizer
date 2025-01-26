@@ -125,7 +125,6 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
     const { accessToken, clientSecret, apiKey, isAdmin, isActive } = cacheToken[cacheKey]
     const lineSignature = headers['x-line-signature']
 
-    if (!isActive) return new Response(null, { status: 404 })
     if (lineSignature !== crypto.createHmac('SHA256', clientSecret).update(JSON.stringify(body)).digest('base64')) {
       return new Response(null, { status: 401 })
     }
@@ -176,7 +175,7 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
       messages.push(Object.assign(event.message, { replyToken: event.replyToken }))
     }
 
-    if (messages.length) await queueSend({ ...optionQueue, timestamp }, messages)
+    if (isActive && messages.length) await queueSend({ ...optionQueue, timestamp }, messages)
 
     return new Response(null, { status: 201 })
   } catch (error) {
