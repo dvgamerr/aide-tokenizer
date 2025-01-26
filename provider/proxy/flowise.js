@@ -1,4 +1,3 @@
-import { logger } from '../logger'
 import pkg from '../../package.json'
 const WAIT_QUOTA = 800
 
@@ -11,11 +10,9 @@ const ANSWER = {
   },
 }
 
-export const flowise = async (chatId, question, language = 'th', settings = {}) => {
+export const flowisePrediction = async (sessionId, question, language = 'th', settings = {}) => {
   let quotaRetry = 3
   const { baseUrl, chatflowId, apiKey } = settings
-
-  logger.info(`[flowise] ${chatId} HM:${question}`)
   const options = {
     method: 'POST',
     headers: {
@@ -23,7 +20,7 @@ export const flowise = async (chatId, question, language = 'th', settings = {}) 
       'User-Agent': `aide-${pkg.name}/${pkg.version}`,
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ chatId, question }),
+    body: JSON.stringify({ chatId: sessionId, question }),
   }
   let result = { answer: ANSWER.SERVER_DOWN[language], language }
   while (quotaRetry > 0) {
@@ -39,7 +36,21 @@ export const flowise = async (chatId, question, language = 'th', settings = {}) 
     quotaRetry--
     await sleep(WAIT_QUOTA)
   }
-  logger.info(`[flowise] ${chatId} AI:${result.answer}`)
 
   return result
+}
+
+export const flowiseDeleteSession = async (sessionId, settings = {}) => {
+  const { baseUrl, chatflowId, apiKey } = settings
+  const options = {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': `aide-${pkg.name}/${pkg.version}`,
+      Authorization: `Bearer ${apiKey}`,
+    },
+  }
+  const url = `${baseUrl}/api/v1/chatmessage/${chatflowId}?chatflowid=${chatflowId}&chatId=${sessionId}&sessionId=${sessionId}`
+
+  return await fetch(url, options).then((res) => res.json())
 }

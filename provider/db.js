@@ -33,6 +33,40 @@ export const pgClient = async () => {
     connClient = false
   })
 
+  await clientConn.query(`
+    CREATE TABLE IF NOT EXISTS "public"."users" (
+      "chat_id" varchar(36) NOT NULL,
+      "notice_name" varchar(20) NOT NULL,
+      "api_key" uuid NOT NULL DEFAULT gen_random_uuid(),
+      "created_at" timestamptz NOT NULL DEFAULT now(),
+      "active" bool NOT NULL DEFAULT false,
+      "admin" bool NOT NULL DEFAULT false,
+      CONSTRAINT "users_notice_name_fkey" FOREIGN KEY ("notice_name") REFERENCES "public"."notice"("name"),
+      PRIMARY KEY ("chat_id","notice_name")
+    );
+
+    CREATE TABLE IF NOT EXISTS "public"."sessions" (
+      "chat_id" varchar(36) NOT NULL,
+      "notice_name" varchar(20) NOT NULL,
+      "session_id" uuid DEFAULT gen_random_uuid(),
+      "created_at" timestamptz DEFAULT now(),
+      CONSTRAINT "sessions_notice_name_fkey" FOREIGN KEY ("notice_name") REFERENCES "public"."notice"("name"),
+      PRIMARY KEY ("chat_id","notice_name")
+    );
+      
+    CREATE TABLE IF NOT EXISTS "public"."users" (
+      "chat_id" varchar(36) NOT NULL,
+      "notice_name" varchar(20) NOT NULL,
+      "api_key" uuid NOT NULL DEFAULT gen_random_uuid(),
+      "created_at" timestamptz NOT NULL DEFAULT now(),
+      "active" bool NOT NULL DEFAULT false,
+      "admin" bool NOT NULL DEFAULT false,
+      "profile" json DEFAULT '{}'::json,
+      CONSTRAINT "users_notice_name_fkey" FOREIGN KEY ("notice_name") REFERENCES "public"."notice"("name"),
+      PRIMARY KEY ("chat_id","notice_name")
+    );
+  `)
+
   return clientConn
 }
 
@@ -46,6 +80,7 @@ export const pgQueue = async () => {
   }
 
   if (!queueCreated) {
+    logger.info(` - queue created.`)
     await queueConn.queue.create(queueName)
   }
   return queueConn
