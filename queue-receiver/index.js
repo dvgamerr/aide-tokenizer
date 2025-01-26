@@ -1,52 +1,19 @@
-import { Elysia } from 'elysia'
-import { getChatId, preloadAnimation, userProfile } from '../provider/line'
+import { Elysia, t } from 'elysia'
+import { getChatId, userProfile } from '../provider/line'
 import { pgClient, pgQueue, queueName } from '../provider/db'
+import { flowisePrediction } from '../provider/proxy/flowise'
 import { logger } from '../provider/logger'
-import { v4 as uuidv4 } from 'uuid'
+import { randomUUIDv7 } from 'bun'
 const crypto = require('crypto')
 
 const clientConn = await pgClient()
 const clientQueue = await pgQueue()
 
-await clientConn.query(`
-  CREATE TABLE IF NOT EXISTS "public"."users" (
-    "chat_id" varchar(36) NOT NULL,
-    "notice_name" varchar(20) NOT NULL,
-    "api_key" uuid NOT NULL DEFAULT gen_random_uuid(),
-    "created_at" timestamptz NOT NULL DEFAULT now(),
-    "active" bool NOT NULL DEFAULT false,
-    "admin" bool NOT NULL DEFAULT false,
-    CONSTRAINT "users_notice_name_fkey" FOREIGN KEY ("notice_name") REFERENCES "public"."notice"("name"),
-    PRIMARY KEY ("chat_id","notice_name")
-  );
-
-  CREATE TABLE IF NOT EXISTS "public"."sessions" (
-    "chat_id" varchar(36) NOT NULL,
-    "notice_name" varchar(20) NOT NULL,
-    "session_id" uuid DEFAULT gen_random_uuid(),
-    "created_at" timestamptz DEFAULT now(),
-    CONSTRAINT "sessions_notice_name_fkey" FOREIGN KEY ("notice_name") REFERENCES "public"."notice"("name"),
-    PRIMARY KEY ("chat_id","notice_name")
-  );
-    
-  CREATE TABLE IF NOT EXISTS "public"."users" (
-    "chat_id" varchar(36) NOT NULL,
-    "notice_name" varchar(20) NOT NULL,
-    "api_key" uuid NOT NULL DEFAULT gen_random_uuid(),
-    "created_at" timestamptz NOT NULL DEFAULT now(),
-    "active" bool NOT NULL DEFAULT false,
-    "admin" bool NOT NULL DEFAULT false,
-    "profile" json DEFAULT '{}'::json,
-    CONSTRAINT "users_notice_name_fkey" FOREIGN KEY ("notice_name") REFERENCES "public"."notice"("name"),
-    PRIMARY KEY ("chat_id","notice_name")
-  );
-`)
-
 const app = new Elysia()
 
 const valid_channels = ['line', 'discord']
 const valid_bots = ['popcorn', 'aide']
-const waitAnimation = 60
+// const waitAnimation = 60
 
 app.post('/_healthz', async () => {
   return new Response('☕')
@@ -56,11 +23,9 @@ const isCommandIncluded = (event, cmd) => {
   if (event?.message?.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}`, 'ig'))) return true
   return false
 }
-
-const queueSend = async (sessionId, chatId, botName, messages = [], timestamp) => {
-  const queueId = await clientQueue.msg.send(queueName, { chatId, messages, botName, timestamp: timestamp || +new Date(), sessionId })
-  logger.info(`[queue:${queueId}] ${botName}:${chatId}`)
-  return queueId
+const queueSend = async (options, messages = []) => {
+  const queueId = await clientQueue.msg.send(queueName, { ...options, messages })
+  logger.info(`[queue:${queueId}] ${options.botName}:${options.displayName}`)
 }
 
 app.put('/:channel/:botName', async ({ headers, body, params, query }) => {
@@ -75,7 +40,9 @@ app.put('/:channel/:botName', async ({ headers, body, params, query }) => {
     if (!body.type) body.type = 'text'
     const notice = await clientConn.query(
       `
-      SELECT u.chat_id
+      SELECT 
+        n.access_token, u.chat_id, n.proxy, 
+        coalesce(u.profile ->> 'displayName', u.chat_id) as display_name
       FROM users u
       INNER JOIN notice n ON n.name = u.notice_name
       WHERE u.active = 't' AND u.api_key = $1 AND u.notice_name = $2 AND provider = $3
@@ -86,13 +53,26 @@ app.put('/:channel/:botName', async ({ headers, body, params, query }) => {
     if (!notice.rows.length) return new Response(null, { status: 401 })
 
     const chatId = notice.rows[0]?.chat_id
+    const proxyConfig = notice.rows[0]?.proxy
+    const accessToken = notice.rows[0]?.access_token
+    const displayName = notice.rows[0]?.display_name
 
-    await queueSend(null, chatId, params.botName, body?.messages ? body.messages : [text ? { type: 'text', text } : body])
+    await queueSend(
+      {
+        sessionId: null,
+        botName: params.botName,
+        chatId,
+        displayName,
+        accessToken,
+        proxyConfig,
+      },
+      body?.messages ? body.messages : [text ? { type: 'text', text } : body],
+    )
 
     return new Response(null, { status: 201 })
   } catch (ex) {
     logger.error(ex)
-    return new Response(null, { status: 500 })
+    return new Response(null, { status: 401 })
   }
 })
 
@@ -117,19 +97,24 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
       const notice = await clientConn.query(
         `
         SELECT
-          access_token, client_secret, api_key, admin
+          n.access_token, n.client_secret, u.api_key, u.admin,
+          n.proxy, coalesce(u.profile ->> 'displayName', u.chat_id) as display_name
         FROM notice n
         LEFT JOIN users u ON n.name = u.notice_name AND u.chat_id = $1
-        WHERE name = $2 AND provider = $3
+        WHERE n.name = $2 AND provider = $3
       `,
         [chatId, params.botName, params.channel.toUpperCase()],
       )
-      if (!notice.rows.length) throw new Error("Bot doesn't have token")
+      if (!notice.rows.length) {
+        return new Response(null, { status: 401 })
+      }
       cacheToken[cacheKey] = {
         accessToken: notice.rows[0]?.access_token,
         clientSecret: notice.rows[0]?.client_secret,
         apiKey: notice.rows[0]?.api_key,
         isAdmin: notice.rows[0]?.admin,
+        proxyConfig: notice.rows[0]?.proxy,
+        displayName: notice.rows[0]?.display_name,
       }
 
       if (!cacheToken[cacheKey].apiKey) {
@@ -138,42 +123,40 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
     }
     const { accessToken, clientSecret, apiKey, isAdmin } = cacheToken[cacheKey]
 
-    await preloadAnimation(accessToken, chatId, waitAnimation)
+    // await preloadAnimation(accessToken, chatId, waitAnimation)
 
     const lineSignature = headers['x-line-signature']
     if (lineSignature !== crypto.createHmac('SHA256', clientSecret).update(JSON.stringify(body)).digest('base64')) {
       return new Response(null, { status: 401 })
     }
 
-    // Query session_id by chatId
-    let res = await clientConn.query('SELECT session_id FROM sessions WHERE chat_id = $1 AND notice_name = $2', [chatId, params.botName])
-    let sessionId = res.rows[0]?.session_id
-    if (!res.rows.length) {
-      // If not exists, generate random session_id and save to database
-      sessionId = uuidv4()
-      await clientConn.query('INSERT INTO sessions (chat_id, notice_name, session_id) VALUES ($1, $2, $3)', [
-        chatId,
-        params.botName,
-        sessionId,
-      ])
-    }
+    const sessionId = randomUUIDv7()
+    await clientConn.query(
+      `
+      INSERT INTO sessions (chat_id, notice_name, session_id) VALUES ($1, $2, $3)
+      ON CONFLICT (chat_id, notice_name) DO NOTHING
+      `,
+      [chatId, params.botName, sessionId],
+    )
 
     let timestamp = 0,
       messages = []
 
+    const optionQueue = { ...cacheToken[cacheKey], botName: params.botName, chatId, sessionId }
     for await (const event of body.events) {
       if (isAdmin) {
+        delete optionQueue.sessionId
         if (isCommandIncluded(event, 'raw')) {
-          await queueSend(sessionId, chatId, params.botName, [
-            { type: 'text', text: JSON.stringify(event, null, 2), sender: { name: 'admin' } },
-          ])
+          await queueSend(optionQueue, [{ type: 'text', text: JSON.stringify(event, null, 2), sender: { name: 'admin' } }])
           continue
         }
       }
       if (isCommandIncluded(event, 'id')) {
-        await queueSend(sessionId, chatId, params.botName, [{ type: 'template', name: 'get-id', chatId, sender: { name: 'admin' } }])
+        delete optionQueue.sessionId
+        await queueSend(optionQueue, [{ type: 'template', name: 'get-id', chatId, sender: { name: 'admin' } }])
         continue
       } else if (isCommandIncluded(event, 'im')) {
+        delete optionQueue.sessionId
         const profile = await userProfile(accessToken, chatId)
         delete cacheToken[cacheKey]
         if (event.message.text.trim().includes(apiKey)) {
@@ -182,13 +165,9 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
             params.botName,
             JSON.stringify(profile),
           ])
-          await queueSend(sessionId, chatId, params.botName, [
-            { type: 'text', text: `Hi, ${profile.displayName}`, sender: { name: 'admin' } },
-          ])
+          await queueSend(optionQueue, [{ type: 'text', text: `Hi, ${profile.displayName}`, sender: { name: 'admin' } }])
         } else {
-          await queueSend(sessionId, chatId, params.botName, [
-            { type: 'text', text: `${profile.displayName}, Nope! 😅 `, sender: { name: 'admin' } },
-          ])
+          await queueSend(optionQueue, [{ type: 'text', text: `${profile.displayName}, Nope! 😅 `, sender: { name: 'admin' } }])
         }
         continue
       }
@@ -197,7 +176,7 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
       messages.push(Object.assign(event.message, { replyToken: event.replyToken }))
     }
 
-    if (messages.length) await queueSend(sessionId, chatId, params.botName, messages, timestamp)
+    if (messages.length) await queueSend({ ...optionQueue, timestamp }, messages)
 
     return new Response(null, { status: 201 })
   } catch (error) {
@@ -205,6 +184,27 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
     return new Response(null, { status: 500 })
   }
 })
+
+// const chatFlowIntentionId = '73796bfb-d561-4708-8857-cd88d5eff91c'
+// const chatFlowAgentId = 'e7c7021f-ff6d-4f91-a96f-d28ba47c2ae6'
+app.post(
+  '/flowise/LINE-popcorn',
+  async ({ body }) => {
+    const { chatId, question } = body
+    const result = await flowisePrediction(chatId, question, 'th', {
+      baseUrl: Bun.env.FLOWISE_API,
+      chatflowId: Bun.env.FLOWISE_ID,
+      apiKey: Bun.env.FLOWISE_KEY,
+    })
+    return result
+  },
+  {
+    body: t.Object({
+      question: t.String(),
+      chatId: t.String(),
+    }),
+  },
+)
 
 app.listen(process.env.PORT || 3000)
 logger.info(`running on ${app.server?.hostname}:${app.server?.port}`)
