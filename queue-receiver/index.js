@@ -97,7 +97,7 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
       const notice = await clientConn.query(
         `
         SELECT
-          n.access_token, n.client_secret, u.api_key, u.admin,
+          n.access_token, n.client_secret, u.api_key, u.admin, u.active,
           n.proxy, coalesce(u.profile ->> 'displayName', u.chat_id) as display_name
         FROM notice n
         LEFT JOIN users u ON n.name = u.notice_name AND u.chat_id = $1
@@ -113,6 +113,7 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
         clientSecret: notice.rows[0]?.client_secret,
         apiKey: notice.rows[0]?.api_key,
         isAdmin: notice.rows[0]?.admin,
+        isActive: notice.rows[0]?.active,
         proxyConfig: notice.rows[0]?.proxy,
         displayName: notice.rows[0]?.display_name,
       }
@@ -121,11 +122,10 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
         await clientConn.query('INSERT INTO users (chat_id, notice_name) VALUES ($1, $2)', [chatId, params.botName])
       }
     }
-    const { accessToken, clientSecret, apiKey, isAdmin } = cacheToken[cacheKey]
-
-    // await preloadAnimation(accessToken, chatId, waitAnimation)
-
+    const { accessToken, clientSecret, apiKey, isAdmin, isActive } = cacheToken[cacheKey]
     const lineSignature = headers['x-line-signature']
+
+    if (!isActive) return new Response(null, { status: 404 })
     if (lineSignature !== crypto.createHmac('SHA256', clientSecret).update(JSON.stringify(body)).digest('base64')) {
       return new Response(null, { status: 401 })
     }
