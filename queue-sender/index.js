@@ -41,9 +41,8 @@ while (true) {
 
     if (sessionId) {
       const question = messages.map((m) => m.text).join(' ')
-      const logFlowise = logger.child({ sessionId, chatId })
 
-      logFlowise.info(`[${displayName}] HM[Context]:${question}`)
+      logger.info(`[${sessionId}] ${displayName}:HM[Context]:${question}`)
       const res = await fetch(proxyConfig.url, {
         method: 'POST',
         headers: {
@@ -52,13 +51,13 @@ while (true) {
           'x-secret-key': Bun.env.AIDE_API_KEY || 'n/a',
           'x-api-key': apiKey,
         },
-        body: JSON.stringify({ chatId, chatType, question }),
+        body: JSON.stringify({ chatId: sessionId, chatType, question }),
       })
       if (!res.ok) throw new Error(`${res.status} - ${res.statusText}\n${await res.text()}`)
 
       const { answer, intent } = await res.json()
       await pushMessage(accessToken, chatId, answer)
-      logFlowise.info(`[${displayName}] AI[${intent}]:${answer}`)
+      logger.info(`[${sessionId}] ${displayName}:AI[${intent}]:${answer}`)
     } else {
       await pushMessage(accessToken, chatId, messages)
     }

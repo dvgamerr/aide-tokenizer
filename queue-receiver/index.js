@@ -32,8 +32,8 @@ const isCommandIncluded = (event, cmd) => {
 }
 
 const queueSend = async (options, messages = []) => {
-  const queueId = await clientQueue.msg.send(queueName, { ...options, messages })
-  logger.info(`[queue:${queueId}] ${options.botName}:${options.displayName}`)
+  await clientQueue.msg.send(queueName, { ...options, messages })
+  logger.info(`[${options.sessionId || options.chatId}] ${options.botName}:${options.displayName}`)
 }
 
 app.put('/:channel/:botName', async ({ headers, body, params, query }) => {
@@ -210,11 +210,11 @@ app.post(
   '/flowise/LINE-popcorn',
   async ({ headers, body }) => {
     let quotaRetry = 3
-    const { question, chatType } = body
+    const { chatId, question, chatType } = body
     const users = await clientConn.query(
       `
         SELECT 
-        u.language, u.notice_name, s.session_id
+        u.language, u.notice_name, u.chat_id
         FROM users u
         INNER JOIN sessions s ON s.chat_id = u.chat_id AND s.notice_name = u.notice_name
         WHERE api_key = $1
@@ -223,11 +223,11 @@ app.post(
     )
     if (!users.rows.length) return new Response(null, { status: 401 })
     const language = users.rows[0].language === 'NA' ? 'EN' : users.rows[0].language
-    const { session_id } = users.rows[0]
+    const { notice_name, chat_id } = users.rows[0]
 
     let result = { answer: ANSWER.SERVER_DOWN[language], language }
     while (quotaRetry > 0) {
-      const completion = await flowisePrediction(session_id, JSON.stringify({ type: chatType, question }))
+      const completion = await flowisePrediction(chatId, JSON.stringify({ type: chatType, question }))
       if (!completion.error) {
         try {
           result = JSON.parse(completion.text)
@@ -244,6 +244,8 @@ app.post(
     }
 
     if (result.intent === 'END') {
+      delete cacheToken[`${notice_name}_${chat_id}`]
+
       await clientConn.query(
         `
           UPDATE sessions s SET session_id = uuid_generate_v4()
