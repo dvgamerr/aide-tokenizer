@@ -34,6 +34,9 @@ export const pgClient = async () => {
   })
 
   await clientConn.query(`
+    
+    -- CREATE TYPE "t_lang" AS ENUM('TH', 'EN', 'NA');
+    
     CREATE TABLE IF NOT EXISTS "public"."users" (
       "chat_id" varchar(36) NOT NULL,
       "notice_name" varchar(20) NOT NULL,
@@ -41,6 +44,8 @@ export const pgClient = async () => {
       "created_at" timestamptz NOT NULL DEFAULT now(),
       "active" bool NOT NULL DEFAULT false,
       "admin" bool NOT NULL DEFAULT false,
+      "profile" json DEFAULT '{}'::json,
+      "language" "public"."t_lang" NOT NULL DEFAULT 'NA'::t_lang,
       CONSTRAINT "users_notice_name_fkey" FOREIGN KEY ("notice_name") REFERENCES "public"."notice"("name"),
       PRIMARY KEY ("chat_id","notice_name")
     );
@@ -65,6 +70,8 @@ export const pgClient = async () => {
       CONSTRAINT "users_notice_name_fkey" FOREIGN KEY ("notice_name") REFERENCES "public"."notice"("name"),
       PRIMARY KEY ("chat_id","notice_name")
     );
+
+    CREATE INDEX IF NOT EXISTS "users_api_key_unique" ON "public"."users" ("api_key");
   `)
 
   return clientConn

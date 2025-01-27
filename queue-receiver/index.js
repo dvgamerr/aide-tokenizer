@@ -184,21 +184,83 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
 
 // const chatFlowIntentionId = '73796bfb-d561-4708-8857-cd88d5eff91c'
 // const chatFlowAgentId = 'e7c7021f-ff6d-4f91-a96f-d28ba47c2ae6'
+
+const WAIT_QUOTA = 800
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const ANSWER = {
+  SERVER_DOWN: {
+    EN: "I'm sorry, I can't help you right now.",
+    TH: 'ขอโทษค่ะ ไม่สามารถให้บริการในขณะนี้',
+  },
+}
+
+const AIDE_API_KEY = Bun.env.AIDE_API_KEY
 app.post(
   '/flowise/LINE-popcorn',
-  async ({ body }) => {
-    const { chatId, question } = body
-    const result = await flowisePrediction(chatId, question, 'th', {
-      baseUrl: Bun.env.FLOWISE_API,
-      chatflowId: Bun.env.FLOWISE_ID,
-      apiKey: Bun.env.FLOWISE_KEY,
-    })
+  async ({ headers, body }) => {
+    let quotaRetry = 3
+    const { chatId, question, type } = body
+
+    const users = await clientConn.query(
+      `
+        SELECT 
+        u.language, u.notice_name, s.session_id
+        FROM users u
+        INNER JOIN sessions s ON s.chat_id = u.chat_id AND s.notice_name = u.notice_name
+        WHERE api_key = $1
+      `,
+      [headers['x-api-key']],
+    )
+    if (!users.rows.length) return new Response(null, { status: 401 })
+    const language = users.rows[0].language === 'NA' ? 'EN' : users.rows[0].language
+    const { notice_name } = users.rows[0]
+    console.log(notice_name)
+    let result = { answer: ANSWER.SERVER_DOWN[language], language }
+    while (quotaRetry > 0) {
+      const completion = await flowisePrediction(chatId, JSON.stringify({ type, question }))
+      if (!completion.error) {
+        try {
+          result = JSON.parse(completion.text)
+        } catch {
+          result = { answer: completion.text }
+        }
+        break
+      }
+      quotaRetry--
+      await sleep(WAIT_QUOTA)
+    }
+
+    if (result.intent === 'END') {
+      await clientConn.query(
+        `
+          UPDATE sessions s
+          SET session_id = uuid_generate_v4()
+          FROM users u 
+          WHERE s.chat_id = u.chat_id 
+          AND s.notice_name = u.notice_name
+          AND u.api_key = $1
+        `,
+        [headers['x-api-key']],
+      )
+    }
+
     return result
   },
   {
+    beforeHandle({ headers, set }) {
+      if (!headers['x-api-key'] || headers['x-secret-key'] != AIDE_API_KEY) {
+        set.status = 400
+        set.headers['WWW-Authenticate'] = `Bearer realm='sign', error="invalid_request"`
+
+        return 'Unauthorized'
+      }
+    },
     body: t.Object({
       question: t.String(),
       chatId: t.String(),
+      type: t.String(),
     }),
   },
 )
