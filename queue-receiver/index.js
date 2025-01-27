@@ -104,17 +104,19 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
       const notice = await clientConn.query(
         `
         SELECT
-          n.access_token, n.client_secret, u.api_key, u.admin, u.active,
+          n.access_token, n.client_secret, u.api_key, u.admin, u.active, s.session_id,
           n.proxy, coalesce(u.profile ->> 'displayName', u.chat_id) as display_name
         FROM notice n
-        LEFT JOIN users u ON n.name = u.notice_name AND u.chat_id = $1
-        WHERE n.name = $2 AND provider = $3
+        LEFT JOIN users u ON n.name = u.notice_name
+        LEFT JOIN sessions s ON n.name = s.notice_name AND u.chat_id = s.chat_id
+        WHERE u.chat_id = $1 AND n.name = $2 AND provider = $3
       `,
         [chatId, params.botName, params.channel.toUpperCase()],
       )
       if (!notice.rows.length) {
         return new Response(null, { status: 401 })
       }
+
       cacheToken[cacheKey] = {
         accessToken: notice.rows[0]?.access_token,
         clientSecret: notice.rows[0]?.client_secret,
@@ -123,6 +125,7 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
         isActive: notice.rows[0]?.active,
         proxyConfig: notice.rows[0]?.proxy,
         displayName: notice.rows[0]?.display_name,
+        sessionId: notice.rows[0]?.session_id,
       }
 
       if (!cacheToken[cacheKey].apiKey) {
@@ -130,20 +133,23 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
       }
     }
     const { accessToken, clientSecret, apiKey, isAdmin, isActive } = cacheToken[cacheKey]
+    let { sessionId } = cacheToken[cacheKey]
     const lineSignature = headers['x-line-signature']
 
     if (lineSignature !== crypto.createHmac('SHA256', clientSecret).update(JSON.stringify(body)).digest('base64')) {
       return new Response(null, { status: 401 })
     }
 
-    const sessionId = randomUUIDv7()
-    await clientConn.query(
-      `
-      INSERT INTO sessions (chat_id, notice_name, session_id) VALUES ($1, $2, $3)
-      ON CONFLICT (chat_id, notice_name) DO NOTHING
-      `,
-      [chatId, params.botName, sessionId],
-    )
+    if (!sessionId) {
+      sessionId = randomUUIDv7()
+      await clientConn.query(
+        `
+        INSERT INTO sessions (chat_id, notice_name, session_id) VALUES ($1, $2, $3)
+        ON CONFLICT (chat_id, notice_name) DO NOTHING
+        `,
+        [chatId, params.botName, sessionId],
+      )
+    }
 
     let timestamp = 0,
       messages = []
