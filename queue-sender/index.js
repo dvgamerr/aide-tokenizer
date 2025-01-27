@@ -8,14 +8,13 @@ const queueDelete = async (msgId) => {
   logger.info(`[queue:${msgId}] deleted`)
   clientQueue.msg.delete(queueName, msgId)
 }
+
 const queueArchive = async (msgId) => {
   logger.info(`[queue:${msgId}] archived}`)
   clientQueue.msg.archive(queueName, msgId)
 }
 
-const flexTemplate = {
-  'get-id': flexChatId,
-}
+const flexTemplate = { 'get-id': flexChatId }
 const clientQueue = await pgQueue()
 
 logger.info(`Queue ${queueName} is running...`)
@@ -23,11 +22,14 @@ while (true) {
   const sender = await clientQueue.msg.read(queueName, 10)
   if (!sender) continue
 
-  const { msgId, readCount } = sender
-  try {
-    const { chatId, messages, chatType, sessionId, proxyConfig, displayName, accessToken, apiKey } = sender.message
-    const { type: msgType, name: msgName } = messages[0]
+  const {
+    msgId,
+    readCount,
+    message: { chatId, messages, chatType, sessionId, proxyConfig, displayName, accessToken, apiKey },
+  } = sender
+  const { type: msgType, name: msgName } = messages[0]
 
+  try {
     if (msgType === 'template') {
       if (!flexTemplate[msgName]) {
         await queueDelete(msgId)
@@ -41,8 +43,8 @@ while (true) {
 
     if (sessionId) {
       const question = messages.map((m) => m.text).join(' ')
-
       logger.info(`[${sessionId}] ${displayName}:HM[Context]:${question}`)
+
       const res = await fetch(proxyConfig.url, {
         method: 'POST',
         headers: {
@@ -53,6 +55,7 @@ while (true) {
         },
         body: JSON.stringify({ chatId: sessionId, chatType, question }),
       })
+
       if (!res.ok) throw new Error(`${res.status} - ${res.statusText}\n${await res.text()}`)
 
       const { answer, intent } = await res.json()
@@ -62,15 +65,9 @@ while (true) {
       await pushMessage(accessToken, chatId, messages)
     }
 
-    if (Bun.env.NODE_ENV === 'production') {
-      await queueArchive(msgId)
-    } else {
-      await queueDelete(msgId)
-    }
+    await (Bun.env.NODE_ENV === 'production' ? queueArchive : queueDelete)(msgId)
   } catch (ex) {
-    if (readCount > 3) {
-      await queueDelete(msgId)
-    }
+    if (readCount > 3) await queueDelete(msgId)
     logger.warn(ex)
   }
 }
