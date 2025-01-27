@@ -1,18 +1,10 @@
 import pkg from '../../package.json'
-const WAIT_QUOTA = 800
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const baseUrl = Bun.env.FLOWISE_API
+const chatflowId = Bun.env.FLOWISE_ID
+const apiKey = Bun.env.FLOWISE_KEY
 
-const ANSWER = {
-  SERVER_DOWN: {
-    en: "I'm sorry, I can't help you right now.",
-    th: 'ขอโทษค่ะ ไม่สามารถให้บริการในขณะนี้',
-  },
-}
-
-export const flowisePrediction = async (sessionId, question, language = 'th', settings = {}) => {
-  let quotaRetry = 3
-  const { baseUrl, chatflowId, apiKey } = settings
+export const flowisePrediction = async (chatId, question) => {
   const options = {
     method: 'POST',
     headers: {
@@ -20,28 +12,13 @@ export const flowisePrediction = async (sessionId, question, language = 'th', se
       'User-Agent': `aide-${pkg.name}/${pkg.version}`,
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ chatId: sessionId, question }),
-  }
-  let result = { answer: ANSWER.SERVER_DOWN[language], language }
-  while (quotaRetry > 0) {
-    const completion = await fetch(`${baseUrl}/api/v1/prediction/${chatflowId}`, options).then((res) => res.json())
-    if (!completion.error) {
-      try {
-        result = JSON.parse(completion.text)
-      } catch {
-        result = { answer: completion.text, language }
-      }
-      break
-    }
-    quotaRetry--
-    await sleep(WAIT_QUOTA)
+    body: JSON.stringify({ chatId, question }),
   }
 
-  return result
+  return fetch(`${baseUrl}/api/v1/prediction/${chatflowId}`, options).then((res) => res.json())
 }
 
-export const flowiseDeleteSession = async (sessionId, settings = {}) => {
-  const { baseUrl, chatflowId, apiKey } = settings
+export const flowiseDeleteSession = async (sessionId) => {
   const options = {
     method: 'DELETE',
     headers: {
@@ -52,5 +29,5 @@ export const flowiseDeleteSession = async (sessionId, settings = {}) => {
   }
   const url = `${baseUrl}/api/v1/chatmessage/${chatflowId}?chatflowid=${chatflowId}&chatId=${sessionId}&sessionId=${sessionId}`
 
-  return await fetch(url, options).then((res) => res.json())
+  return fetch(url, options).then((res) => res.json())
 }
