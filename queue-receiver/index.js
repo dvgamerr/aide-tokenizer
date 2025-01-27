@@ -1,5 +1,5 @@
-import { Elysia, t } from 'elysia'
-import { getChatId, userProfile } from '../provider/line'
+import { Elysia } from 'elysia'
+import { getChatId, getType, userProfile } from '../provider/line'
 import { pgClient, pgQueue, queueName } from '../provider/db'
 import { flowisePrediction } from '../provider/proxy/flowise'
 import { logger } from '../provider/logger'
@@ -14,6 +14,14 @@ const app = new Elysia()
 const valid_channels = ['line', 'discord']
 const valid_bots = ['popcorn', 'aide']
 // const waitAnimation = 60
+
+app.onError(({ code, error }) => {
+  logger.warn(`[${code}] ${error.toString()}`)
+  return {
+    status: code,
+    message: error.toString().replace('Error: ', ''),
+  }
+})
 
 app.post('/_healthz', async () => {
   return new Response('☕')
@@ -89,6 +97,7 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
   }
 
   const chatId = getChatId(body.events[0])
+  const chatType = getType(body.events[0])
   try {
     const cacheKey = `${params.botName}_${chatId}`
     if (!cacheToken[cacheKey]) {
@@ -139,11 +148,11 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
     let timestamp = 0,
       messages = []
 
-    const optionQueue = { ...cacheToken[cacheKey], botName: params.botName, chatId, sessionId }
+    const optionQueue = { ...cacheToken[cacheKey], botName: params.botName, chatId, sessionId, chatType }
     for await (const event of body.events) {
       if (isAdmin) {
-        delete optionQueue.sessionId
         if (isCommandIncluded(event, 'raw')) {
+          delete optionQueue.sessionId
           await queueSend(optionQueue, [{ type: 'text', text: JSON.stringify(event, null, 2), sender: { name: 'admin' } }])
           continue
         }
@@ -201,8 +210,7 @@ app.post(
   '/flowise/LINE-popcorn',
   async ({ headers, body }) => {
     let quotaRetry = 3
-    const { chatId, question, type } = body
-
+    const { question, chatType } = body
     const users = await clientConn.query(
       `
         SELECT 
@@ -215,11 +223,11 @@ app.post(
     )
     if (!users.rows.length) return new Response(null, { status: 401 })
     const language = users.rows[0].language === 'NA' ? 'EN' : users.rows[0].language
-    const { notice_name } = users.rows[0]
-    console.log(notice_name)
+    const { session_id } = users.rows[0]
+
     let result = { answer: ANSWER.SERVER_DOWN[language], language }
     while (quotaRetry > 0) {
-      const completion = await flowisePrediction(chatId, JSON.stringify({ type, question }))
+      const completion = await flowisePrediction(session_id, JSON.stringify({ type: chatType, question }))
       if (!completion.error) {
         try {
           result = JSON.parse(completion.text)
@@ -231,16 +239,16 @@ app.post(
       quotaRetry--
       await sleep(WAIT_QUOTA)
     }
+    if (users.rows[0].language === 'NA') {
+      await clientConn.query(`UPDATE users SET language = $2 WHERE api_key = $1`, [headers['x-api-key'], result.language.toUpperCase()])
+    }
 
     if (result.intent === 'END') {
       await clientConn.query(
         `
-          UPDATE sessions s
-          SET session_id = uuid_generate_v4()
-          FROM users u 
-          WHERE s.chat_id = u.chat_id 
-          AND s.notice_name = u.notice_name
-          AND u.api_key = $1
+          UPDATE sessions s SET session_id = uuid_generate_v4()
+          FROM users u WHERE s.chat_id = u.chat_id 
+          AND s.notice_name = u.notice_name AND u.api_key = $1
         `,
         [headers['x-api-key']],
       )
@@ -257,11 +265,6 @@ app.post(
         return 'Unauthorized'
       }
     },
-    body: t.Object({
-      question: t.String(),
-      chatId: t.String(),
-      type: t.String(),
-    }),
   },
 )
 

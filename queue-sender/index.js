@@ -1,7 +1,7 @@
 import flexChatId from '../provider/flex/id'
 import { pgQueue, queueName } from '../provider/db'
 import { pushMessage } from '../provider/line'
-
+import pkg from '../package.json'
 import { logger } from '../provider/logger'
 
 const queueDelete = async (msgId) => {
@@ -25,7 +25,7 @@ while (true) {
 
   const { msgId, readCount } = sender
   try {
-    const { chatId, messages, sessionId, proxyConfig, displayName, accessToken } = sender.message
+    const { chatId, messages, chatType, sessionId, proxyConfig, displayName, accessToken, apiKey } = sender.message
     const { type: msgType, name: msgName } = messages[0]
 
     if (msgType === 'template') {
@@ -43,25 +43,22 @@ while (true) {
       const question = messages.map((m) => m.text).join(' ')
       const logFlowise = logger.child({ sessionId, chatId })
 
-      logFlowise.info(`[${displayName}] HM:${question}`)
-      const answer = ''
-      const intention = 'OTHER'
-      if (answer) await pushMessage(accessToken, chatId, answer)
-      logFlowise.info(`[${displayName}] AI:${answer || intention}`)
+      logFlowise.info(`[${displayName}] HM[Context]:${question}`)
+      const res = await fetch(proxyConfig.url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': `aide-${pkg.name}/${pkg.version}`,
+          'x-secret-key': Bun.env.AIDE_API_KEY || 'n/a',
+          'x-api-key': apiKey,
+        },
+        body: JSON.stringify({ chatId, chatType, question }),
+      })
+      if (!res.ok) throw new Error(`${res.status} - ${res.statusText}\n${await res.text()}`)
 
-      console.log(proxyConfig)
-      // const logFlowise = logger.child({ sessionId, chatId })
-
-      // logFlowise.info(`[${displayName}] HM:${question}`)
-
-      // if (proxyConfig.name == 'flowise') {
-      //   const { answer, intention } = await flowisePrediction(sessionId, question, 'th', proxyConfig)
-      //   if (answer) await pushMessage(accessToken, chatId, answer)
-      //   logFlowise.info(`[${displayName}] AI:${answer || intention}`)
-      // }
-
-      // if (intention === 'END') {
-      // }
+      const { answer, intent } = await res.json()
+      await pushMessage(accessToken, chatId, answer)
+      logFlowise.info(`[${displayName}] AI[${intent}]:${answer}`)
     } else {
       await pushMessage(accessToken, chatId, messages)
     }
