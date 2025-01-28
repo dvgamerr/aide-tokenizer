@@ -15,7 +15,17 @@ const valid_channels = ['line', 'discord']
 const valid_bots = ['popcorn', 'aide']
 // const waitAnimation = 60
 
+const isCommandIncluded = (event, cmd) => {
+  return event?.message?.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}`, 'ig'))
+}
+
+const queueSend = async (options, messages = []) => {
+  await clientQueue.msg.send(queueName, { ...options, messages })
+  logger.info(`[${options.sessionId || options.chatId}] ${options.botName}:${options.displayName}`)
+}
+
 app.onError(({ code, error }) => {
+  if (code === 'NOT_FOUND') return new Response(code)
   logger.warn(`[${code}] ${error.toString()}`)
   return {
     status: code,
@@ -27,17 +37,10 @@ app.get('/_healthz', async () => {
   return new Response('☕')
 })
 
-const isCommandIncluded = (event, cmd) => {
-  return event?.message?.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}`, 'ig'))
-}
-
-const queueSend = async (options, messages = []) => {
-  await clientQueue.msg.send(queueName, { ...options, messages })
-  logger.info(`[${options.sessionId || options.chatId}] ${options.botName}:${options.displayName}`)
-}
-
 app.put('/:channel/:botName', async ({ headers, body, params, query }) => {
   try {
+    const { botName } = params
+    logger.info(`[${botName}] push messsages`)
     let apiKey = query.apiKey
     let text = query?.text
 
@@ -85,6 +88,8 @@ app.put('/:channel/:botName', async ({ headers, body, params, query }) => {
 const cacheToken = {}
 
 app.post('/:channel/:botName', async ({ headers, body, params }) => {
+  const { botName } = params
+  logger.info(`[${botName}] ${body?.events?.length || 0} messsages`)
   if (
     !headers['x-line-signature'] ||
     !valid_channels.includes(params.channel.toLowerCase()) ||
