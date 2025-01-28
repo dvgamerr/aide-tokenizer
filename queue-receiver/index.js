@@ -32,6 +32,9 @@ app.onError(({ code, error }) => {
     message: error.toString().replace('Error: ', ''),
   }
 })
+app.onAfterResponse((res) => {
+  logger.info(`[${res.response.status}] ${res.path} ${Math.round(performance.now() / 1000)}ms`)
+})
 
 app.get('/_healthz', async () => {
   return new Response('☕')
@@ -93,8 +96,7 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
   if (
     !headers['x-line-signature'] ||
     !valid_channels.includes(params.channel.toLowerCase()) ||
-    !valid_bots.includes(params.botName.toLowerCase()) ||
-    !body?.events.length
+    !valid_bots.includes(params.botName.toLowerCase())
   )
     return new Response(null, { status: 404 })
   if (body.events[0].type == 'postback') {
@@ -112,9 +114,9 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
           n.access_token, n.client_secret, u.api_key, u.admin, u.active, s.session_id,
           n.proxy, coalesce(u.profile ->> 'displayName', u.chat_id) as display_name
         FROM notice n
-        LEFT JOIN users u ON n.name = u.notice_name
+        LEFT JOIN users u ON n.name = u.notice_name AND u.chat_id = $1
         LEFT JOIN sessions s ON n.name = s.notice_name AND u.chat_id = s.chat_id
-        WHERE u.chat_id = $1 AND n.name = $2 AND provider = $3
+        WHERE n.name = $2 AND provider = $3
       `,
         [chatId, params.botName, params.channel.toUpperCase()],
       )
