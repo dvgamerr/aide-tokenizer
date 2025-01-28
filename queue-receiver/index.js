@@ -1,14 +1,14 @@
 import { Elysia } from 'elysia'
 import { getChatId, getType, userProfile } from '../provider/line'
-import { pgClient, pgQueue, queueName } from '../provider/db'
+import { pgClient, queueSend } from '../provider/db'
 import { flowisePrediction } from '../provider/proxy/flowise'
 import { logger } from '../provider/logger'
 import { randomUUIDv7 } from 'bun'
-const crypto = require('crypto')
+import crypto from 'crypto'
+import handlerHealth from './handler/health'
+import handlerChannelBotName from './handler/channel-botname'
 
 const clientConn = await pgClient()
-const clientQueue = await pgQueue()
-
 const app = new Elysia()
 
 const valid_channels = ['line', 'discord']
@@ -19,98 +19,40 @@ const isCommandIncluded = (event, cmd) => {
   return event?.message?.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}`, 'ig'))
 }
 
-const queueSend = async (options, messages = []) => {
-  await clientQueue.msg.send(queueName, { ...options, messages })
-  logger.info(`[${options.sessionId || options.chatId}] ${options.botName}:${options.displayName}`)
-}
-
 app.onError(({ code, error }) => {
   if (code === 'NOT_FOUND') return new Response(code)
-  logger.warn(`[${code}] ${error.toString()}`)
-  return {
-    status: code,
-    message: error.toString().replace('Error: ', ''),
-  }
-})
-app.onAfterResponse((res) => {
-  if (['_healthz'].includes(res.path)) return
-  logger.info(`[${res.response.status}] ${res.path} ${Math.round(performance.now() / 1000)}ms`)
+  return { status: code, error: error.toString().replace('Error: ', '') }
 })
 
-app.get('/_healthz', async () => {
-  return new Response('☕')
+app.onAfterResponse(({ code, path, response, error }) => {
+  if (['/_healthz'].includes(path)) return
+  const errorMessage = error && code ? ` |${error.toString().replace('Error: ', '')}| ` : ' '
+
+  logger[error && code ? 'warn' : 'info'](`[${code || response.status}] ${path}${errorMessage}${Math.round(performance.now() / 1000)}ms`)
 })
 
-app.put('/:channel/:botName', async ({ headers, body, params, query }) => {
-  try {
-    const { botName } = params
-    logger.info(`[${botName}] push messsages`)
-    let apiKey = query.apiKey
-    let text = query?.text
-
-    const credentials = (headers['authorization'] || '').split(' ')
-    if (credentials.length === 2) apiKey = Buffer.from(credentials[1], 'base64').toString('ascii')
-    if (!apiKey) return new Response(null, { status: 401 })
-    if (!text && !body?.text && !body?.messages?.length) return new Response(null, { status: 400 })
-    if (!body.type) body.type = 'text'
-
-    const notice = await clientConn.query(
-      `
-      SELECT 
-        n.access_token, u.chat_id, n.proxy, 
-        coalesce(u.profile ->> 'displayName', u.chat_id) as display_name
-      FROM users u
-      INNER JOIN notice n ON n.name = u.notice_name
-      WHERE u.active = 't' AND u.api_key = $1 AND u.notice_name = $2 AND provider = $3
-    `,
-      [apiKey, params.botName, params.channel.toUpperCase()],
-    )
-
-    if (!notice.rows.length) return new Response(null, { status: 401 })
-
-    const { chat_id: chatId, proxy: proxyConfig, access_token: accessToken, display_name: displayName } = notice.rows[0]
-
-    await queueSend(
-      {
-        sessionId: null,
-        botName: params.botName,
-        chatId,
-        displayName,
-        accessToken,
-        proxyConfig,
-      },
-      body?.messages ? body.messages : [text ? { type: 'text', text } : body],
-    )
-
-    return new Response(null, { status: 201 })
-  } catch (ex) {
-    logger.error(ex)
-    return new Response(null, { status: 401 })
-  }
-})
+app.get('/_healthz', handlerHealth)
+app.put('/:channel/:botName', handlerChannelBotName)
 
 const cacheToken = {}
 
 app.post('/:channel/:botName', async ({ headers, body, params }) => {
-  const { botName } = params
-  logger.info(`[${botName}] ${body?.events?.length || 0} messsages`)
   if (
     !headers['x-line-signature'] ||
     !valid_channels.includes(params.channel.toLowerCase()) ||
     !valid_bots.includes(params.botName.toLowerCase())
   )
     return new Response(null, { status: 404 })
-  if (body.events[0].type == 'postback') {
+  if (!body.events[0]?.type || body.events[0]?.type == 'postback') {
     return new Response(null, { status: 201 })
   }
 
   const chatId = getChatId(body.events[0])
   const chatType = getType(body.events[0])
-  try {
-    const cacheKey = `${params.botName}_${chatId}`
-    if (!cacheToken[cacheKey]) {
-      const notice = await clientConn.query(
-        `
+  const cacheKey = `${params.botName}_${chatId}`
+  if (!cacheToken[cacheKey]) {
+    const notice = await clientConn.query(
+      `
         SELECT
           n.access_token, n.client_secret, u.api_key, u.admin, u.active, s.session_id,
           n.proxy, coalesce(u.profile ->> 'displayName', u.chat_id) as display_name
@@ -119,90 +61,86 @@ app.post('/:channel/:botName', async ({ headers, body, params }) => {
         LEFT JOIN sessions s ON n.name = s.notice_name AND u.chat_id = s.chat_id
         WHERE n.name = $2 AND provider = $3
       `,
-        [chatId, params.botName, params.channel.toUpperCase()],
-      )
-      if (!notice.rows.length) {
-        return new Response(null, { status: 401 })
-      }
-
-      cacheToken[cacheKey] = {
-        accessToken: notice.rows[0]?.access_token,
-        clientSecret: notice.rows[0]?.client_secret,
-        apiKey: notice.rows[0]?.api_key,
-        isAdmin: notice.rows[0]?.admin,
-        isActive: notice.rows[0]?.active,
-        proxyConfig: notice.rows[0]?.proxy,
-        displayName: notice.rows[0]?.display_name,
-        sessionId: notice.rows[0]?.session_id,
-      }
-
-      if (!cacheToken[cacheKey].apiKey) {
-        await clientConn.query('INSERT INTO users (chat_id, notice_name) VALUES ($1, $2)', [chatId, params.botName])
-      }
-    }
-    const { accessToken, clientSecret, apiKey, isAdmin, isActive } = cacheToken[cacheKey]
-    let { sessionId } = cacheToken[cacheKey]
-    const lineSignature = headers['x-line-signature']
-
-    if (lineSignature !== crypto.createHmac('SHA256', clientSecret).update(JSON.stringify(body)).digest('base64')) {
+      [chatId, params.botName, params.channel.toUpperCase()],
+    )
+    if (!notice.rows.length) {
       return new Response(null, { status: 401 })
     }
 
-    if (!sessionId) {
-      sessionId = randomUUIDv7()
-      await clientConn.query(
-        `
+    cacheToken[cacheKey] = {
+      accessToken: notice.rows[0]?.access_token,
+      clientSecret: notice.rows[0]?.client_secret,
+      apiKey: notice.rows[0]?.api_key,
+      isAdmin: notice.rows[0]?.admin,
+      isActive: notice.rows[0]?.active,
+      proxyConfig: notice.rows[0]?.proxy,
+      displayName: notice.rows[0]?.display_name,
+      sessionId: notice.rows[0]?.session_id,
+    }
+
+    if (!cacheToken[cacheKey].apiKey) {
+      await clientConn.query('INSERT INTO users (chat_id, notice_name) VALUES ($1, $2)', [chatId, params.botName])
+    }
+  }
+  const { accessToken, clientSecret, apiKey, isAdmin, isActive } = cacheToken[cacheKey]
+  let { sessionId } = cacheToken[cacheKey]
+  const lineSignature = headers['x-line-signature']
+
+  if (lineSignature !== crypto.createHmac('SHA256', clientSecret).update(JSON.stringify(body)).digest('base64')) {
+    return new Response(null, { status: 401 })
+  }
+
+  if (!sessionId) {
+    sessionId = randomUUIDv7()
+    await clientConn.query(
+      `
         INSERT INTO sessions (chat_id, notice_name, session_id) VALUES ($1, $2, $3)
         ON CONFLICT (chat_id, notice_name) DO NOTHING
         `,
-        [chatId, params.botName, sessionId],
-      )
-    }
-
-    let timestamp = 0,
-      messages = []
-
-    const optionQueue = { ...cacheToken[cacheKey], botName: params.botName, chatId, sessionId, chatType }
-    for await (const event of body.events) {
-      if (isAdmin) {
-        if (isCommandIncluded(event, 'raw')) {
-          delete optionQueue.sessionId
-          await queueSend(optionQueue, [{ type: 'text', text: JSON.stringify(event, null, 2), sender: { name: 'admin' } }])
-          continue
-        }
-      }
-      if (isCommandIncluded(event, 'id')) {
-        delete optionQueue.sessionId
-        await queueSend(optionQueue, [{ type: 'template', name: 'get-id', chatId, sender: { name: 'admin' } }])
-        continue
-      } else if (isCommandIncluded(event, 'im')) {
-        delete optionQueue.sessionId
-        const profile = await userProfile(accessToken, chatId)
-        delete cacheToken[cacheKey]
-        if (event.message.text.trim().includes(apiKey)) {
-          await clientConn.query("UPDATE users SET active = 't', profile = $3::json WHERE chat_id = $1 AND notice_name = $2", [
-            chatId,
-            params.botName,
-            JSON.stringify(profile),
-          ])
-          await queueSend(optionQueue, [{ type: 'text', text: `Hi, ${profile.displayName}`, sender: { name: 'admin' } }])
-        } else {
-          await queueSend(optionQueue, [{ type: 'text', text: `${profile.displayName}, Nope! 😅 `, sender: { name: 'admin' } }])
-        }
-        continue
-      }
-      timestamp = event.timestamp
-
-      messages.push(Object.assign(event.message, { replyToken: event.replyToken }))
-    }
-
-    if (isActive && messages.length) await queueSend({ ...optionQueue, timestamp }, messages)
-
-    return new Response(null, { status: 201 })
-  } catch (error) {
-    logger.error(error)
-    return new Response(null, { status: 500 })
+      [chatId, params.botName, sessionId],
+    )
   }
+
+  let timestamp = 0,
+    messages = []
+
+  const optionQueue = { ...cacheToken[cacheKey], botName: params.botName, chatId, sessionId, chatType }
+  for await (const event of body.events) {
+    if (isAdmin) {
+      if (isCommandIncluded(event, 'raw')) {
+        delete optionQueue.sessionId
+        await queueSend(optionQueue, [{ type: 'text', text: JSON.stringify(event, null, 2), sender: { name: 'admin' } }])
+        continue
+      }
+    }
+    if (isCommandIncluded(event, 'id')) {
+      delete optionQueue.sessionId
+      await queueSend(optionQueue, [{ type: 'template', name: 'get-id', chatId, sender: { name: 'admin' } }])
+      continue
+    } else if (isCommandIncluded(event, 'im')) {
+      delete optionQueue.sessionId
+      const profile = await userProfile(accessToken, chatId)
+      delete cacheToken[cacheKey]
+      if (event.message.text.trim().includes(apiKey)) {
+        await clientConn.query("UPDATE users SET active = 't', profile = $3::json WHERE chat_id = $1 AND notice_name = $2", [
+          chatId,
+          params.botName,
+          JSON.stringify(profile),
+        ])
+        await queueSend(optionQueue, [{ type: 'text', text: `Hi, ${profile.displayName}`, sender: { name: 'admin' } }])
+      } else {
+        await queueSend(optionQueue, [{ type: 'text', text: `${profile.displayName}, Nope! 😅 `, sender: { name: 'admin' } }])
+      }
+      continue
+    }
+    timestamp = event.timestamp
+
+    messages.push(Object.assign(event.message, { replyToken: event.replyToken }))
+  }
+
+  if (isActive && messages.length) await queueSend({ ...optionQueue, timestamp }, messages)
+
+  return new Response(null, { status: 201 })
 })
 
 // const chatFlowIntentionId = '73796bfb-d561-4708-8857-cd88d5eff91c'

@@ -5,12 +5,12 @@ import pkg from '../package.json'
 import { logger } from '../provider/logger'
 
 const queueDelete = async (msgId) => {
-  logger.info(`[queue:${msgId}] deleted`)
+  logger.trace(`[queue]  deleted Id: ${msgId}`)
   clientQueue.msg.delete(queueName, msgId)
 }
 
 const queueArchive = async (msgId) => {
-  logger.info(`[queue:${msgId}] archived}`)
+  logger.trace(`[queue] archived Id: ${msgId}`)
   clientQueue.msg.archive(queueName, msgId)
 }
 

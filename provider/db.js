@@ -89,3 +89,10 @@ export const pgQueue = async () => {
   }
   return queueConn
 }
+
+const clientQueue = await pgQueue()
+
+export const queueSend = async (options, messages = []) => {
+  await clientQueue.msg.send(queueName, { ...options, messages })
+  logger.info(`[${options.sessionId || options.chatId}] ${options.botName}:${options.displayName}`)
+}
