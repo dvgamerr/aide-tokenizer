@@ -33,6 +33,7 @@ app.onError(({ code, error }) => {
   }
 })
 app.onAfterResponse((res) => {
+  if (['_healthz'].includes(res.path)) return
   logger.info(`[${res.response.status}] ${res.path} ${Math.round(performance.now() / 1000)}ms`)
 })
 
