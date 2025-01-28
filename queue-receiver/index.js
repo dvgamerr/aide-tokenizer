@@ -23,7 +23,7 @@ app.onError(({ code, error }) => {
   }
 })
 
-app.post('/_healthz', async () => {
+app.get('/_healthz', async () => {
   return new Response('☕')
 })
 
@@ -276,5 +276,5 @@ app.post(
   },
 )
 
-app.listen(process.env.PORT || 3000)
+app.listen({ port: process.env.PORT || 3000, hostname: '0.0.0.0' })
 logger.info(`running on ${app.server?.hostname}:${app.server?.port}`)
