@@ -1,6 +1,6 @@
-import flexChatId from '../provider/flex/id'
+import flexChatId from '../provider/line/flex-id'
 import { pgQueue, queueName } from '../provider/db'
-import { pushMessage } from '../provider/line'
+import pushMessage from '../provider/line/push-message'
 import pkg from '../package.json'
 import { logger } from '../provider/logger'
 
