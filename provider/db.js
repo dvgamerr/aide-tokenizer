@@ -69,6 +69,14 @@ export const pgClient = async () => {
     );
 
     CREATE INDEX IF NOT EXISTS "users_api_key_unique" ON "public"."users" ("api_key");
+
+    CREATE TABLE IF NOT EXISTS "public"."reminder" (
+      "name" varchar(20) NOT NULL,
+      "note" json NOT NULL DEFAULT '{}',
+      PRIMARY KEY ("name")
+    );
+
+
   `)
 
   return clientConn
