@@ -17,12 +17,11 @@ app.onError(({ code, error }) => {
   return { status: code, error: error.toString().replace('Error: ', '') }
 })
 
-app.onAfterResponse(({ code, path, response, error }) => {
-  if (['/_healthz'].includes(path)) return
-  const errorMessage = error && code ? ` |${error.toString().replace('Error: ', '')}| ` : ' '
-
-  logger[error && code ? 'warn' : 'info'](`[${code || response.status}] ${path}${errorMessage}${Math.round(performance.now() / 1000)}ms`)
-})
+// app.onAfterResponse(({ code, path, response, error }) => {
+//   if (['/_healthz'].includes(path)) return
+//   const errorMessage = error && code ? ` |${error.toString().replace('Error: ', '')}| ` : ' '
+//   logger[error && code ? 'warn' : 'trace'](`[${code || response.status}] ${path}${errorMessage}${Math.round(performance.now() / 1000)}ms`)
+// })
 
 app.get('/_healthz', handlerHealth)
 app.put('/:channel/:botName', handlerBotPushMessage)

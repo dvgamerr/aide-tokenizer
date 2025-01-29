@@ -1,4 +1,4 @@
-import { sleep } from '../../provider/helper'
+import { sleep } from '../../../provider/helper'
 import { pgClient } from '../../../provider/db'
 import { flowisePrediction } from '../../../provider/proxy/flowise'
 

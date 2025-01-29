@@ -1,9 +1,8 @@
-import { logger } from '../../provider/helper'
 import { pgClient, queueSend } from '../../provider/db'
 
 const clientConn = await pgClient()
 
-export default async ({ headers, body, params, query }) => {
+export default async ({ logger, headers, body, params, query }) => {
   const { botName } = params
   try {
     let apiKey = query.apiKey
