@@ -35,7 +35,7 @@ while (true) {
 
     if (sessionId) {
       const question = messages.map((m) => m.text).join(' ')
-      logger.child({ sessionId }).info(`${botName}:HM[${chatType}]:${question}`)
+      logger.info(`[${sessionId}] ${botName}:HM[${chatType}]`)
 
       const res = await fetch(proxyConfig.url, {
         method: 'POST',
@@ -50,7 +50,7 @@ while (true) {
       if (!res.ok) throw new Error(`${res.status} - ${res.statusText}\n${await res.text()}`)
 
       const body = await res.json()
-      logger.child({ sessionId }).info(`${botName}:AI[${body.intent}]:${body.answer}`)
+      logger.info(`[${sessionId}] ${botName}:AI[${body.intent}]`)
       await pushMessage(accessToken, chatId, body.answer || body)
     } else {
       await pushMessage(accessToken, chatId, messages)
