@@ -1,11 +1,9 @@
-// import { logger } from '../../provider/logger'
+import { sleep } from '../../provider/helper'
 import { pgClient } from '../../../provider/db'
 import { flowisePrediction } from '../../../provider/proxy/flowise'
 
 const WAIT_QUOTA = 800
 const clientConn = await pgClient()
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const AIDE_API_KEY = Bun.env.AIDE_API_KEY
 const ANSWER = {

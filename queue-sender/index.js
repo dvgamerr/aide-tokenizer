@@ -1,8 +1,9 @@
 import flexChatId from '../provider/line/flex-id'
 import { pgQueue, queueName } from '../provider/db'
+import { sleep } from '../../provider/helper'
 import pushMessage from '../provider/line/push-message'
 import pkg from '../package.json'
-import { logger } from '../provider/logger'
+import { logger } from '../provider/helper'
 
 const queueDelete = async (msgId) => {
   logger.trace(`[queue]  deleted Id: ${msgId}`)
@@ -70,4 +71,5 @@ while (true) {
     if (readCount > 3) await queueDelete(msgId)
     logger.warn(ex)
   }
+  await sleep(1000)
 }

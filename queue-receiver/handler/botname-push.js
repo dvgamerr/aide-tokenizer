@@ -1,4 +1,4 @@
-import { logger } from '../../provider/logger'
+import { logger } from '../../provider/helper'
 import { pgClient, queueSend } from '../../provider/db'
 
 const clientConn = await pgClient()

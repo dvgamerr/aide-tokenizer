@@ -1,6 +1,6 @@
 import { Pgmq } from 'pgmq-js'
 import { Client } from 'pg'
-import { logger } from './logger'
+import { logger } from './helper'
 
 const PG_HOST = Bun.env.PG_HOST || 'localhost'
 const PG_USER = Bun.env.PG_USER || 'postgres'

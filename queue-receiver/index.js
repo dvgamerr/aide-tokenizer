@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia'
-import { logger } from '../provider/logger'
+import { logger } from '../provider/helper'
 import handlerHealth from './handler/health'
 import handlerBotPushMessage from './handler/botname-push'
 import handlerBotWebhook from './handler/botname-webhook'

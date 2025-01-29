@@ -1,4 +1,4 @@
-import { logger } from '../logger'
+import { logger } from '../helper'
 import { LINE_API } from '.'
 
 export default async (accessToken, chatId, messages) => {
