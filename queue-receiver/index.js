@@ -4,12 +4,13 @@ import handlerHealth from './handler/health'
 import handlerBotPushMessage from './handler/botname-push'
 import handlerBotWebhook from './handler/botname-webhook'
 import handlerFlowisePopcorn from './handler/flowise/popcorn'
+import handlerCollectorGold from './handler/collector/gold-oz'
 
 import { name, version } from '../package.json'
 
 const app = new Elysia().decorate({
   logger: logger,
-  pkg: { name, version },
+  pkg: { name, version, userAgent: `aide-${name}/${version}` },
 })
 
 app.onError(({ code, error }) => {
@@ -27,6 +28,8 @@ app.get('/_healthz', handlerHealth)
 app.put('/:channel/:botName', handlerBotPushMessage)
 app.post('/:channel/:botName', handlerBotWebhook)
 app.post('/flowise/LINE-popcorn', ...handlerFlowisePopcorn)
+app.put('/collector/gold', handlerCollectorGold)
+app.get('/collector/gold', handlerCollectorGold)
 
 app.listen({ port: process.env.PORT || 3000, hostname: '0.0.0.0' })
 logger.info(`running on ${app.server?.hostname}:${app.server?.port}`)
