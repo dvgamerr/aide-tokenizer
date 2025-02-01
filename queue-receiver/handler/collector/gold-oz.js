@@ -32,7 +32,6 @@ export default async ({ request, headers, pkg, userAgent }) => {
   const trands = res.spot['tout-ico'] === 'up' ? 'เพิ่มขึ้น' : 'ลดลง'
 
   if (request.method === 'PUT') {
-    console.log(headers)
     const line = await fetch('http://localhost:3000/line/aide', {
       method: 'PUT',
       headers: {

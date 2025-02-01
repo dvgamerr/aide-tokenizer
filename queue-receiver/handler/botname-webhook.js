@@ -1,4 +1,4 @@
-// import { logger } from '../../provider/logger'
+import { logger } from '../../provider/helper'
 import { pgClient, queueSend } from '../../provider/db'
 import { getChatId, getType } from '../../provider/line'
 import userProfile from '../../provider/line/user-profile'
@@ -16,6 +16,9 @@ export default async ({ headers, body, params }) => {
   if (!body.events[0]?.type || body.events[0]?.type == 'postback') {
     return new Response(null, { status: 201 })
   }
+
+  const tokens = (body.events.map((e) => (e.message.text || '').length).reduce((p, v) => p + v) / 3.75).toFixed(0)
+  logger.info(`[${params.botName}] ${tokens} tokens.`)
 
   const chatId = getChatId(body.events[0])
   const chatType = getType(body.events[0])
@@ -54,9 +57,11 @@ export default async ({ headers, body, params }) => {
   const lineSignature = headers['x-line-signature']
 
   if (lineSignature !== crypto.createHmac('SHA256', clientSecret).update(JSON.stringify(body)).digest('base64')) {
+    logger.warn(`[${params.botName}] ${lineSignature} signature failure.`)
     return new Response(null, { status: 401 })
   }
 
+  logger.debug(`[${params.botName}] sessionId: ${sessionId}`)
   if (!sessionId) {
     sessionId = randomUUIDv7()
     await clientConn.query(
@@ -105,6 +110,7 @@ export default async ({ headers, body, params }) => {
   }
 
   if (isActive && messages.length) await queueSend({ ...optionQueue, timestamp }, messages)
+  logger.debug(`[${params.botName}] active:${isActive} - ${messages.length}`)
 
   return new Response(null, { status: 201 })
 }

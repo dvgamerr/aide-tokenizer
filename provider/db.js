@@ -103,21 +103,21 @@ const clientQueue = await pgQueue()
 logger.info(`Queue ${queueName} is running...`)
 export const queueSend = async (options, messages = []) => {
   const msgId = await clientQueue.msg.send(queueName, { ...options, messages })
-  logger.trace(`[ queue:sended ] Id: ${msgId}`)
+  logger.info(`[ queue:sended ] Id: ${msgId}`)
 }
 
 export const queueDelete = async (msgId) => {
-  logger.trace(`[queue:deleted ] Id: ${msgId}`)
+  logger.info(`[queue:deleted ] Id: ${msgId}`)
   clientQueue.msg.delete(queueName, msgId)
 }
 
 export const queueArchive = async (msgId) => {
-  logger.trace(`[queue:archived] Id: ${msgId}`)
+  logger.info(`[queue:archived] Id: ${msgId}`)
   clientQueue.msg.archive(queueName, msgId)
 }
 
 export const queueRead = async () => {
   const sender = await clientQueue.msg.read(queueName, 10)
-  if (sender) logger.trace(`[queue:messaged] Id: ${sender.msgId}`)
+  if (sender) logger.info(`[queue:messaged] Id: ${sender.msgId}`)
   return sender
 }
