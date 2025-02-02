@@ -1,17 +1,14 @@
-import { logger } from '../../provider/helper'
-import { pgClient, queueSend } from '../../provider/db'
+import { queueSend } from '../../provider/db'
 import { getChatId, getType } from '../../provider/line'
 import userProfile from '../../provider/line/user-profile'
 import { randomUUIDv7 } from 'bun'
 import crypto from 'crypto'
 
-const clientConn = await pgClient()
-
 const isCommandIncluded = (event, cmd) => {
   return event?.message?.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}`, 'ig'))
 }
 
-export default async ({ headers, body, params }) => {
+export default async ({ logger, db, headers, body, params }) => {
   if (!headers['x-line-signature']) return new Response(null, { status: 404 })
   if (!body.events[0]?.type || body.events[0]?.type == 'postback') {
     return new Response(null, { status: 201 })
@@ -22,14 +19,14 @@ export default async ({ headers, body, params }) => {
 
   const chatId = getChatId(body.events[0])
   const chatType = getType(body.events[0])
-  const notice = await clientConn.query(
+  const notice = await db.query(
     `
       SELECT
         n.access_token, n.client_secret, u.api_key, u.admin, u.active, s.session_id,
         n.proxy, coalesce(u.profile ->> 'displayName', u.chat_id) as display_name
-      FROM notice n
-      LEFT JOIN users u ON n.name = u.notice_name AND u.chat_id = $1
-      LEFT JOIN sessions s ON n.name = s.notice_name AND u.chat_id = s.chat_id
+      FROM line_notice n
+      LEFT JOIN line_users u ON n.name = u.notice_name AND u.chat_id = $1
+      LEFT JOIN line_sessions s ON n.name = s.notice_name AND u.chat_id = s.chat_id
       WHERE n.name = $2 AND provider = $3
     `,
     [chatId, params.botName, params.channel.toUpperCase()],
@@ -50,7 +47,7 @@ export default async ({ headers, body, params }) => {
   }
 
   if (!cacheToken.apiKey) {
-    await clientConn.query('INSERT INTO users (chat_id, notice_name) VALUES ($1, $2)', [chatId, params.botName])
+    await db.query('INSERT INTO line_users (chat_id, notice_name) VALUES ($1, $2)', [chatId, params.botName])
   }
   const { accessToken, clientSecret, apiKey, isAdmin, isActive } = cacheToken
   let { sessionId } = cacheToken
@@ -64,9 +61,9 @@ export default async ({ headers, body, params }) => {
   logger.debug(`[${params.botName}] sessionId: ${sessionId}`)
   if (!sessionId) {
     sessionId = randomUUIDv7()
-    await clientConn.query(
+    await db.query(
       `
-        INSERT INTO sessions (chat_id, notice_name, session_id) VALUES ($1, $2, $3)
+        INSERT INTO line_sessions (chat_id, notice_name, session_id) VALUES ($1, $2, $3)
         ON CONFLICT (chat_id, notice_name) DO NOTHING
         `,
       [chatId, params.botName, sessionId],
@@ -93,7 +90,7 @@ export default async ({ headers, body, params }) => {
       delete optionQueue.sessionId
       const profile = await userProfile(accessToken, chatId)
       if (event.message.text.trim().includes(apiKey)) {
-        await clientConn.query("UPDATE users SET active = 't', profile = $3::json WHERE chat_id = $1 AND notice_name = $2", [
+        await db.query("UPDATE line_users SET active = 't', profile = $3::json WHERE chat_id = $1 AND notice_name = $2", [
           chatId,
           params.botName,
           JSON.stringify(profile),

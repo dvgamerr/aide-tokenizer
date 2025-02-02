@@ -7,8 +7,7 @@ This project consists of two main components: `queue-sender` and `queue-receiver
 To initialize the database, run the following command:
 
 ```sh
-goose -dir ./provider/db-tokenizer/ postgres "postgresql://usr:pwd@localhost:5432/dev_tokenizer" status
-goose -dir ./provider/db-amerr/ postgres "postgresql://usr:pwd@localhost:5432/dev_amerr" status
+goose up
 ```
 
 ## Environment Variables

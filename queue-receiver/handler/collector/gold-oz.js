@@ -1,12 +1,9 @@
-import { pgClient } from '../../../provider/db'
 import flexGoldMessage from '../../../provider/line/flex-gold'
 import numeral from 'numeral'
 
-const clientConn = await pgClient()
-
 const GOLD_API = 'https://register.ylgbullion.co.th/api/price/gold'
-export default async ({ request, headers, pkg, userAgent }) => {
-  const users = await clientConn.query(`SELECT r.note FROM reminder r WHERE name = 'gold'`)
+export default async ({ db, request, headers, pkg, userAgent }) => {
+  const users = await db.query(`SELECT r.note FROM reminder r WHERE name = 'gold'`)
   const { cost } = users.rows[0].note
 
   const res = await fetch(GOLD_API, {

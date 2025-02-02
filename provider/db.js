@@ -1,33 +1,30 @@
 import { Pgmq } from 'pgmq-js'
 import { Client } from 'pg'
 import { logger } from './helper'
+// import { parse } from 'url'
 
-const PG_HOST = Bun.env.PG_HOST || 'localhost'
-const PG_USER = Bun.env.PG_USER || 'postgres'
-const PG_PASS = Bun.env.PG_PASS || ''
-const PG_POST = parseInt(Bun.env.PG_POST) || 5432
-const PG_DB = Bun.env.PG_DB || 'postgres'
-
-export const queueName = Bun.env.QUEUE_NAME || 'notice_queue'
-
-const pgConn = {
-  host: PG_HOST,
-  database: PG_DB,
-  password: PG_PASS,
-  port: PG_POST,
-  user: PG_USER,
-  ssl: false,
+const parserDBUrl = (dbUrl) => {
+  const url = new URL(dbUrl)
+  return {
+    user: url.username,
+    password: url.password,
+    host: url.hostname,
+    port: url.port,
+    database: url.pathname.split('/')[1],
+    ssl: false,
+  }
 }
+// PG_MAIN_URL
+// PG_QUEUE_URL
 
-export let connClient = false
-export let connQueue = false
-
+const pgConn = parserDBUrl(Bun.env.PG_MAIN_URL)
 const clientConn = new Client(pgConn)
 
+let connClient = false
 export const pgClient = async () => {
   if (connClient) return clientConn
 
-  logger.info(` - database '${PG_DB}' connecting...`)
+  logger.info(` - database '${pgConn.database}' connecting...`)
   await clientConn.connect()
   connClient = true
 
@@ -39,17 +36,18 @@ export const pgClient = async () => {
   return clientConn
 }
 
+const queueName = Bun.env.PG_QUEUE_NAME || 'notice_queue'
 export const pgQueue = async () => {
-  logger.info(` - queue '${queueName}' connecting...`)
-  const queueConn = await Pgmq.new(pgConn)
-
+  const conn = parserDBUrl(Bun.env.PG_QUEUE_URL)
+  const queueConn = await Pgmq.new(conn)
+  logger.info(` - queue at '${conn.database}' in '${queueName}' connecting...`)
   let queueCreated = false
   for await (const e of await queueConn.queue.list()) {
     if (e === queueName) queueCreated = true
   }
 
   if (!queueCreated) {
-    logger.info(` - queue created.`)
+    logger.info(` - queue '${queueName}' is created`)
     await queueConn.queue.create(queueName)
   }
   return queueConn
@@ -57,7 +55,6 @@ export const pgQueue = async () => {
 
 const clientQueue = await pgQueue()
 
-logger.info(`Queue ${queueName} is running...`)
 export const queueSend = async (options, messages = []) => {
   const msgId = await clientQueue.msg.send(queueName, { ...options, messages })
   logger.info(`[ queue:sended ] Id: ${msgId}`)

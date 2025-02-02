@@ -1,9 +1,7 @@
 import { sleep } from '../../../provider/helper'
-import { pgClient } from '../../../provider/db'
 import { flowisePrediction } from '../../../provider/proxy/flowise'
 
 const WAIT_QUOTA = 800
-const clientConn = await pgClient()
 
 const AIDE_API_KEY = Bun.env.AIDE_API_KEY
 const ANSWER = {
@@ -14,13 +12,13 @@ const ANSWER = {
 }
 
 export default [
-  async ({ headers, body }) => {
+  async ({ db, headers, body }) => {
     let quotaRetry = 3
     const { chatId, question, chatType } = body
-    const users = await clientConn.query(
+    const users = await db.query(
       `
-        SELECT u.language FROM users u
-        INNER JOIN sessions s ON s.chat_id = u.chat_id AND s.notice_name = u.notice_name
+        SELECT u.language FROM line_users u
+        INNER JOIN line_sessions s ON s.chat_id = u.chat_id AND s.notice_name = u.notice_name
         WHERE api_key = $1
       `,
       [headers['x-api-key']],
@@ -46,14 +44,14 @@ export default [
       await sleep(WAIT_QUOTA)
     }
     if (users.rows[0].language === 'NA') {
-      await clientConn.query(`UPDATE users SET language = $2 WHERE api_key = $1`, [headers['x-api-key'], result.language.toUpperCase()])
+      await db.query(`UPDATE line_users SET language = $2 WHERE api_key = $1`, [headers['x-api-key'], result.language.toUpperCase()])
     }
 
     if (result.intent === 'END') {
-      await clientConn.query(
+      await db.query(
         `
-          UPDATE sessions s SET session_id = uuid_generate_v4()
-          FROM users u WHERE s.chat_id = u.chat_id 
+          UPDATE line_sessions s SET session_id = uuid_generate_v4()
+          FROM line_users u WHERE s.chat_id = u.chat_id 
           AND s.notice_name = u.notice_name AND u.api_key = $1
         `,
         [headers['x-api-key']],
