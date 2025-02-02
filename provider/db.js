@@ -22,9 +22,12 @@ const pgConn = {
 export let connClient = false
 export let connQueue = false
 
+const clientConn = new Client(pgConn)
+
 export const pgClient = async () => {
+  if (connClient) return clientConn
+
   logger.info(` - database '${PG_DB}' connecting...`)
-  const clientConn = new Client(pgConn)
   await clientConn.connect()
   connClient = true
 

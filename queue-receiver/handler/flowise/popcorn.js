@@ -30,7 +30,10 @@ export default [
 
     let result = { answer: ANSWER.SERVER_DOWN[language], language }
     while (quotaRetry > 0) {
-      const completion = await flowisePrediction(chatId, JSON.stringify({ type: chatType, question }))
+      const completion = await flowisePrediction(
+        chatId,
+        JSON.stringify({ type: chatType, question, today: new Date().toISOString().substring(0, 10) }),
+      )
       if (!completion.error) {
         try {
           result = JSON.parse(completion.text)
