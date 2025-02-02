@@ -24,7 +24,7 @@ app.onError(({ code, error }) => {
 
 app.onAfterResponse(({ code, path, response, request, error }) => {
   if (['/_healthz'].includes(path)) return
-  const ex = error()
+  const ex = error
   const logError = ex.code || code > 299
   const logLvl = logError ? 'warn' : 'trace'
   const errorMessage = logError ? ` |${ex.code || ex.message.toString().replace('Error: ', '')}| ` : ' '
@@ -37,7 +37,7 @@ app.post('/:channel/:botName', handlerBotWebhook)
 app.post('/flowise/LINE-popcorn', ...handlerFlowisePopcorn)
 app.put('/collector/gold', handlerCollectorGold)
 app.get('/collector/gold', handlerCollectorGold)
-app.get('/collector/cinema', handlerCollectorCinema)
+app.get('/collector/cinema', ...handlerCollectorCinema)
 
 app.post('/stash/cinema', handlerStashCinema)
 

@@ -4,8 +4,9 @@ CREATE SCHEMA IF NOT EXISTS "stash";
 CREATE TYPE manga_type AS ENUM ('manga', 'manhwa', 'doujin');
 CREATE TYPE manga_lang AS ENUM ('TH', 'EN', 'CH', 'JP', 'KR');
 CREATE TABLE IF NOT EXISTS "stash"."cinema_showing" (
-  "s_name" varchar(120) NOT NULL,
   "s_bind" varchar(120),
+  "s_name_en" varchar(200) NOT NULL,
+  "s_name_th" varchar(200) NOT NULL,
   "s_display" varchar(200) NOT NULL,
   "t_release" timestamptz NOT NULL,
   "s_genre" varchar(40) NOT NULL,
