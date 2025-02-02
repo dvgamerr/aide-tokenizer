@@ -4,10 +4,10 @@ CREATE SCHEMA IF NOT EXISTS "stash";
 CREATE TYPE manga_type AS ENUM ('manga', 'manhwa', 'doujin');
 CREATE TYPE manga_lang AS ENUM ('TH', 'EN', 'CH', 'JP', 'KR');
 CREATE TABLE IF NOT EXISTS "stash"."cinema_showing" (
-  "s_bind" varchar(120),
-  "s_name_en" varchar(200) NOT NULL,
-  "s_name_th" varchar(200) NOT NULL,
-  "s_display" varchar(200) NOT NULL,
+  "s_bind" varchar(200),
+  "s_name_en" text NOT NULL,
+  "s_name_th" text NOT NULL,
+  "s_display" text NOT NULL,
   "t_release" timestamptz NOT NULL,
   "s_genre" varchar(40) NOT NULL,
   "n_week" int2 NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS "stash"."cinema_showing" (
   "s_url" text NOT NULL,
   "s_cover" text NOT NULL,
   "o_theater" jsonb NOT NULL DEFAULT '[]'::jsonb,
-  CONSTRAINT uq_cinema_name UNIQUE ("s_name", "n_week", "n_year")
+  CONSTRAINT uq_cinema_name UNIQUE ("s_bind", "n_week", "n_year")
 );
 CREATE TABLE IF NOT EXISTS "stash"."manga_collection" (
   "s_name" varchar(255) NOT NULL,
