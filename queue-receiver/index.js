@@ -5,7 +5,8 @@ import handlerBotPushMessage from './handler/botname-push'
 import handlerBotWebhook from './handler/botname-webhook'
 import handlerFlowisePopcorn from './handler/flowise/popcorn'
 import handlerCollectorGold from './handler/collector/gold-oz'
-import handlerCinemaShowing from './handler/collector/cinema'
+import handlerCollectorCinema from './handler/collector/cinema'
+import handlerStashCinema from './handler/stash/cinema'
 
 import { pgClient } from '../provider/db'
 import { name, version } from '../package.json'
@@ -36,7 +37,9 @@ app.post('/:channel/:botName', handlerBotWebhook)
 app.post('/flowise/LINE-popcorn', ...handlerFlowisePopcorn)
 app.put('/collector/gold', handlerCollectorGold)
 app.get('/collector/gold', handlerCollectorGold)
-app.post('/stash/cinema_showing', handlerCinemaShowing)
+app.get('/collector/cinema', handlerCollectorCinema)
+
+app.post('/stash/cinema', handlerStashCinema)
 
 app.listen({ port: process.env.PORT || 3000, hostname: '0.0.0.0' })
 logger.info(`running on ${app.server?.hostname}:${app.server?.port}`)

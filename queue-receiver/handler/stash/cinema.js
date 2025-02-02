@@ -4,7 +4,48 @@ import weekOfYear from 'dayjs/plugin/weekOfYear'
 dayjs.extend(weekOfYear)
 
 export default async ({ db, body }) => {
-  return { ok: true }
+  try {
+    const values = body.flatMap((cinema) => [
+      cinema.name,
+      cinema.name,
+      cinema.display,
+      cinema.release,
+      cinema.genre,
+      dayjs(cinema.release).week(),
+      dayjs(cinema.release).year(),
+      cinema.time,
+      cinema.theater.major?.url || cinema.theater.sf.url,
+      cinema.theater.major?.cover || cinema.theater.sf.cover,
+      cinema.theater,
+    ])
+
+    const setInsert = (_, i) =>
+      `($${i * 11 + 1}, $${i * 11 + 2}, $${i * 11 + 3}, $${i * 11 + 4}, $${i * 11 + 5}, $${i * 11 + 6}, $${i * 11 + 7}, $${i * 11 + 8}, $${i * 11 + 9}, $${i * 11 + 10}, $${i * 11 + 11})`
+    await db.query(
+      `
+      INSERT INTO "stash"."cinema_showing"
+      (s_name, s_bind, s_display, t_release, s_genre, n_week, n_year, n_time, s_url, s_cover, o_theater)
+      VALUES
+      ${body.map(setInsert).join(', ')}
+      ON CONFLICT (s_name, n_week, n_year)
+      DO UPDATE SET
+        s_bind = EXCLUDED.s_bind,
+        s_display = EXCLUDED.s_display,
+        t_release = EXCLUDED.t_release,
+        s_genre = EXCLUDED.s_genre,
+        n_week = EXCLUDED.n_week,
+        n_year = EXCLUDED.n_year,
+        n_time = EXCLUDED.n_time,
+        s_url = EXCLUDED.s_url,
+        s_cover = EXCLUDED.s_cover,
+        o_theater = EXCLUDED.o_theater
+      `,
+      values,
+    )
+    return new Response(null, { status: 201 })
+  } catch (ex) {
+    return new Response(JSON.stringify({ error: ex.toString() }), { status: 500 })
+  }
 }
 
 // {

@@ -13,6 +13,7 @@
     "*.js": "eslint --fix"
   },
   "dependencies": {
+    "dayjs": "^1.11.13",
     "elysia": "latest",
     "numeral": "^2.0.6",
     "pg": "^8.13.1",
