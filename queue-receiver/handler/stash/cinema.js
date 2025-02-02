@@ -6,17 +6,17 @@ dayjs.extend(weekOfYear)
 export default async ({ db, body }) => {
   try {
     const values = body.flatMap((cinema) => [
-      cinema.display,
-      cinema.display,
-      cinema.name,
+      cinema.name_en,
+      cinema.name_th,
+      cinema.bind,
       cinema.display,
       cinema.release,
       cinema.genre,
       dayjs(cinema.release).week(),
       dayjs(cinema.release).year(),
       cinema.time,
-      cinema.theater.major?.url || cinema.theater.sf.url,
-      cinema.theater.major?.cover || cinema.theater.sf.cover,
+      cinema.theater.sf?.url || cinema.theater.major.url,
+      cinema.theater.sf?.cover || cinema.theater.major.cover,
       cinema.theater,
     ])
 
@@ -46,6 +46,7 @@ export default async ({ db, body }) => {
     )
     return new Response(null, { status: 201 })
   } catch (ex) {
+    console.log(ex)
     return new Response(JSON.stringify({ error: ex.toString() }), { status: 500 })
   }
 }
