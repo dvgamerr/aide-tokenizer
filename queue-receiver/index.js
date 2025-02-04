@@ -1,6 +1,6 @@
 // Import necessary modules and handlers
 import { Elysia } from 'elysia'
-import { logger } from '../provider/helper'
+import { logger, userAgent, version, PORT } from '../provider/helper'
 import handlerHealth from './handler/health'
 import handlerBotPushMessage from './handler/botname-push'
 import handlerBotWebhook from './handler/botname-webhook'
@@ -11,7 +11,6 @@ import handlerStashCinema from './handler/stash/cinema'
 import handlerStashGold from './handler/stash/gold'
 import handlerCrontabGold from './handler/crontab/gold'
 import { pgClient } from '../provider/db'
-import { name, version } from '../package.json'
 
 // Initialize database connection
 const database = await pgClient()
@@ -57,7 +56,7 @@ const validateAuthLine = {
 const app = new Elysia().decorate({
   db: database,
   logger: logger,
-  pkg: { name, version, userAgent: `aide-${name}/${version}` },
+  userAgent,
 })
 
 // Error handling
@@ -93,5 +92,5 @@ crontab.put('/cinema', handlerCrontabGold, validateAuthLine)
 app.use(crontab)
 
 // Start the server
-app.listen({ port: process.env.PORT || 3000, hostname: '0.0.0.0' })
+app.listen({ port: PORT, hostname: '0.0.0.0' })
 logger.info(`running on ${app.server?.hostname}:${app.server?.port}`)
