@@ -1,4 +1,5 @@
-import { Elysia, t } from 'elysia'
+// Import necessary modules and handlers
+import { Elysia } from 'elysia'
 import { logger } from '../provider/helper'
 import handlerHealth from './handler/health'
 import handlerBotPushMessage from './handler/botname-push'
@@ -9,32 +10,39 @@ import handlerCollectorCinema from './handler/collector/cinema'
 import handlerStashCinema from './handler/stash/cinema'
 import handlerStashGold from './handler/stash/gold'
 import handlerCrontabGold from './handler/crontab/gold'
-
 import { pgClient } from '../provider/db'
 import { name, version } from '../package.json'
 
-const db = await pgClient()
+// Initialize database connection
+const database = await pgClient()
 
+// Log application start
 logger.info(`queue-receiver ${version} starting...`)
-const users = await db.query(`SELECT notice_name, api_key FROM line_users WHERE active = 't'`)
-const userAllowed = users.rows.reduce((acc, e) => {
-  const name = `${e.notice_name}:${e.api_key}`
-  acc[name] = true
-  return acc
+
+// Fetch and process allowed users
+const users = await database.query(`SELECT notice_name, api_key FROM line_users WHERE active = 't'`)
+const allowedUsers = users.rows.reduce((accumulator, user) => {
+  const userKey = `${user.notice_name}:${user.api_key}`
+  accumulator[userKey] = true
+  return accumulator
 }, {})
-logger.info(`${Object.keys(userAllowed).length} user(s) allowed.`)
+logger.info(`${Object.keys(allowedUsers).length} user(s) allowed.`)
+
+// Log allowed users in local environment
 if (Bun.env.NODE_ENV === 'local') {
-  for (const key in userAllowed) {
-    console.log(`- ${key} ${btoa(key)}`)
+  for (const userKey in allowedUsers) {
+    console.log(`- ${userKey} ${btoa(userKey)}`)
   }
 }
-const validAuthLine = {
+
+// Middleware for validating authorization
+const validateAuthLine = {
   async beforeHandle({ headers, set }) {
     try {
-      const [type, token] = (headers?.authorization || '').split(' ')
-      if (!headers?.authorization || !type || !token || !userAllowed[atob(token)]) {
+      const [authType, authToken] = (headers?.authorization || '').split(' ')
+      if (!headers?.authorization || !authType || !authToken || !allowedUsers[atob(authToken)]) {
         set.status = 401
-        set.headers['WWW-Authenticate'] = `${type || 'Basic'} realm='sign', error="invalid_token"`
+        set.headers['WWW-Authenticate'] = `${authType || 'Basic'} realm='sign', error="invalid_token"`
         return 'Unauthorized'
       }
     } catch {
@@ -45,43 +53,45 @@ const validAuthLine = {
   },
 }
 
+// Initialize Elysia app with decorations
 const app = new Elysia().decorate({
-  db,
+  db: database,
   logger: logger,
   pkg: { name, version, userAgent: `aide-${name}/${version}` },
 })
 
+// Error handling
 app.onError(({ code, error }) => {
   if (code === 'NOT_FOUND') return new Response(code)
   return { status: code, error: error.toString().replace('Error: ', '') }
 })
 
+// Response logging
 app.onAfterResponse(({ code, path, response, request, error }) => {
   if (['/_healthz'].includes(path)) return
   const ex = error
   const logError = ex.code || code > 299
-  const logLvl = logError ? 'warn' : 'trace'
+  const logLevel = logError ? 'warn' : 'trace'
   const errorMessage = logError ? ` |${ex.code || ex.message.toString().replace('Error: ', '')}| ` : ' '
-  logger[logLvl](`[${code || response?.status || request.method}] ${path}${errorMessage}${Math.round(performance.now() / 1000)}ms`)
+  logger[logLevel](`[${code || response?.status || request.method}] ${path}${errorMessage}${Math.round(performance.now() / 1000)}ms`)
 })
 
-app.get('/_healthz', handlerHealth)
-app.put('/line', handlerBotPushMessage, validAuthLine)
+// Define routes
+app.put('/', handlerBotPushMessage, validateAuthLine)
 app.post('/:channel/:botName', handlerBotWebhook)
 app.post('/flowise/LINE-popcorn', ...handlerFlowisePopcorn)
-
 app.get('/collector/gold', handlerCollectorGold)
 app.get('/collector/cinema', ...handlerCollectorCinema)
-
 app.post('/stash/cinema', handlerStashCinema)
 app.post('/stash/gold', handlerStashGold)
+app.get('/_healthz', handlerHealth)
 
+// Define crontab routes
 const crontab = new Elysia({ prefix: '/crontab' })
-crontab.put('/gold', handlerCrontabGold, validAuthLine)
-crontab.put('/cinema', handlerCrontabGold, validAuthLine)
-
+crontab.put('/gold', handlerCrontabGold, validateAuthLine)
+crontab.put('/cinema', handlerCrontabGold, validateAuthLine)
 app.use(crontab)
-// app.put('/crontab/tin-gold', handlerStashGold)
 
+// Start the server
 app.listen({ port: process.env.PORT || 3000, hostname: '0.0.0.0' })
 logger.info(`running on ${app.server?.hostname}:${app.server?.port}`)
