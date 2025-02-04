@@ -5,7 +5,7 @@ import { randomUUIDv7 } from 'bun'
 import crypto from 'crypto'
 
 const isCommandIncluded = (event, cmd) => {
-  return event?.message?.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}`, 'ig'))
+  return event?.message?.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}.*`, 'ig'))
 }
 
 export default async ({ logger, db, headers, body, params }) => {
@@ -88,7 +88,7 @@ export default async ({ logger, db, headers, body, params }) => {
       continue
     } else if (isCommandIncluded(event, 'im')) {
       delete optionQueue.sessionId
-      const profile = await userProfile(accessToken, chatId)
+      const profile = chatType === 'USER' ? await userProfile(accessToken, chatId) : { displayName: 'Group' }
       if (event.message.text.trim().includes(apiKey)) {
         await db.query("UPDATE line_users SET active = 't', profile = $3::json WHERE chat_id = $1 AND notice_name = $2", [
           chatId,

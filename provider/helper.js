@@ -5,3 +5,8 @@ export const logger = pino({
 })
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+export const getAuthAPIKey = (headers) => {
+  const [, token] = headers.authorization.split(' ')
+  const [name, apiKey] = atob(token).split(':')
+  return { name, apiKey }
+}
