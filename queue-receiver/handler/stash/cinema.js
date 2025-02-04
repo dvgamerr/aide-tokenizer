@@ -40,7 +40,7 @@ export default async ({ db, body }) => {
         n_time = EXCLUDED.n_time,
         s_url = EXCLUDED.s_url,
         s_cover = EXCLUDED.s_cover,
-        o_theater = EXCLUDED.o_theater
+        o_theater = "stash"."cinema_showing".o_theater || EXCLUDED.o_theater
       `,
       values,
     )
