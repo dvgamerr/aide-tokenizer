@@ -10,12 +10,11 @@ export default async ({ logger, db, headers, query, body }) => {
       return new Response(null, { status: 401 })
     }
 
-    const tokens = ((text || body.altText).length / 3.75).toFixed(0)
-    logger.info(`[${botName}] ${tokens} tokens.`)
-
     if (!text && !body.messages?.length && !body.contents) {
       return new Response(null, { status: 400 })
     }
+    const tokens = (JSON.stringify(body).length / 3.75).toFixed(0)
+    logger.info(`[${botName}] ${tokens} tokens.`)
 
     const noticeQuery = `
       SELECT

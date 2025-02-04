@@ -1,5 +1,5 @@
 // Import necessary modules and handlers
-import { Elysia } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { logger, userAgent, version, PORT } from '../provider/helper'
 import handlerHealth from './handler/health'
 import handlerBotPushMessage from './handler/botname-push'
@@ -10,6 +10,7 @@ import handlerCollectorCinema from './handler/collector/cinema'
 import handlerStashCinema from './handler/stash/cinema'
 import handlerStashGold from './handler/stash/gold'
 import handlerCrontabGold from './handler/crontab/gold'
+import handlerCrontabCinema from './handler/crontab/cinema'
 import { pgClient } from '../provider/db'
 
 // Initialize database connection
@@ -76,20 +77,30 @@ app.onAfterResponse(({ code, path, response, request, error }) => {
 })
 
 // Define routes
+app.get('/_healthz', handlerHealth)
 app.put('/', handlerBotPushMessage, validateAuthLine)
 app.post('/:channel/:botName', handlerBotWebhook)
-app.post('/flowise/LINE-popcorn', ...handlerFlowisePopcorn)
 app.get('/collector/gold', handlerCollectorGold)
 app.get('/collector/cinema', ...handlerCollectorCinema)
-app.post('/stash/cinema', handlerStashCinema)
-app.post('/stash/gold', handlerStashGold)
-app.get('/_healthz', handlerHealth)
+
+// Define stash routes
+const stash = new Elysia({ prefix: '/stash' })
+stash.post('/cinema', handlerStashCinema)
+stash.post('/gold', handlerStashGold)
+app.use(stash)
 
 // Define crontab routes
 const crontab = new Elysia({ prefix: '/crontab' })
+crontab.put('/cinema/:flexType', handlerCrontabCinema, {
+  beforeHandle: validateAuthLine.beforeHandle,
+  params: t.Object({
+    flexType: t.Enum({ weekly: 'weekly', day: 'day' }),
+  }),
+})
 crontab.put('/gold', handlerCrontabGold, validateAuthLine)
-crontab.put('/cinema', handlerCrontabGold, validateAuthLine)
 app.use(crontab)
+
+app.post('/flowise/LINE-popcorn', ...handlerFlowisePopcorn)
 
 // Start the server
 app.listen({ port: PORT, hostname: '0.0.0.0' })
