@@ -23,7 +23,7 @@ export default [
       `,
       [headers['x-api-key']],
     )
-    if (!users.rows.length) return new Response(null, { status: 401 })
+    if (!users.rowCount) return new Response(null, { status: 401 })
     const language = users.rows[0].language === 'NA' ? 'EN' : users.rows[0].language
 
     let result = { answer: ANSWER.SERVER_DOWN[language], language }

@@ -31,7 +31,7 @@ export default async ({ logger, db, headers, body, params }) => {
     `,
     [chatId, params.botName, params.channel.toUpperCase()],
   )
-  if (!notice.rows.length) {
+  if (!notice.rowCount) {
     return new Response(null, { status: 401 })
   }
 

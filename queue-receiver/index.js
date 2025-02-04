@@ -1,4 +1,4 @@
-import { Elysia } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { logger } from '../provider/helper'
 import handlerHealth from './handler/health'
 import handlerBotPushMessage from './handler/botname-push'
@@ -8,6 +8,7 @@ import handlerCollectorGold from './handler/collector/gold-oz'
 import handlerCollectorCinema from './handler/collector/cinema'
 import handlerStashCinema from './handler/stash/cinema'
 import handlerStashGold from './handler/stash/gold'
+import handlerCrontabGold from './handler/crontab/gold'
 
 import { pgClient } from '../provider/db'
 import { name, version } from '../package.json'
@@ -65,7 +66,7 @@ app.onAfterResponse(({ code, path, response, request, error }) => {
 })
 
 app.get('/_healthz', handlerHealth)
-app.put('/:channel/:botName', handlerBotPushMessage)
+app.put('/line', handlerBotPushMessage, validAuthLine)
 app.post('/:channel/:botName', handlerBotWebhook)
 app.post('/flowise/LINE-popcorn', ...handlerFlowisePopcorn)
 
@@ -76,8 +77,8 @@ app.post('/stash/cinema', handlerStashCinema)
 app.post('/stash/gold', handlerStashGold)
 
 const crontab = new Elysia({ prefix: '/crontab' })
-crontab.put('/gold', ({ line }) => line, validAuthLine)
-crontab.put('/cinema', ({ line }) => line, validAuthLine)
+crontab.put('/gold', handlerCrontabGold, validAuthLine)
+crontab.put('/cinema', handlerCrontabGold, validAuthLine)
 
 app.use(crontab)
 // app.put('/crontab/tin-gold', handlerStashGold)
