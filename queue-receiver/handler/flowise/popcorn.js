@@ -44,11 +44,11 @@ export default [
         }
         break
       }
-      if (users.rows[0].language === 'NA') {
+      if (language === 'NA') {
         await db.query(`UPDATE line_users SET language = $2 WHERE api_key = $1`, [headers['x-api-key'], result.language.toUpperCase()])
       }
 
-      if (result.intent === 'END') {
+      if (result.intention === 'RESET') {
         await db.query(
           `
             UPDATE line_sessions s SET session_id = uuid_generate_v4()
