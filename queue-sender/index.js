@@ -53,7 +53,7 @@ while (true) {
       })
       if (!res.ok) throw new Error(`${res.status} - ${res.statusText}\n${await res.text()}`)
       const body = await res.json()
-      logger.info(`[${sessionId}] ${botName}:AI[${body.intent}]`)
+      logger.info(`[${sessionId}] ${botName}:AI[${body.intention}]`)
       await pushMessage(accessToken, chatId, body.answer || body)
     } else {
       await pushMessage(accessToken, chatId, messages)
