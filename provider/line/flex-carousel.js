@@ -4,7 +4,7 @@ import 'dayjs/locale/th'
 export default (movies) => {
   return movies.map((e) => {
     const theater = Object.keys(e.o_theater).sort((a, b) => a.localeCompare(b))
-    const releaseDate = dayjs(e.s_release).locale('th').format('D MMMM YYYY')
+    const releaseDate = dayjs(e.t_release).locale('th').format('D MMMM YYYY')
 
     const badge = {
       major: {

@@ -2,8 +2,7 @@ import { pushMessageSelf } from '../../../provider/helper'
 import flexCarouselMessage from '../../../provider/line/flex-carousel'
 import dayjs from 'dayjs'
 
-export default async ({ db, logger, headers, params }) => {
-  console.log(params)
+export default async ({ db, logger, headers }) => {
   try {
     const today = dayjs()
     const currentYear = today.year()
@@ -23,7 +22,6 @@ export default async ({ db, logger, headers, params }) => {
       await pushMessageSelf(headers, { text: '🔎 ไม่พบข้อมูลหนังที่กำลังฉาย' })
       return new Response(null, { status: 204 })
     }
-
     const maxFlexItems = 10
     const totalFlexGroups = Math.ceil(movieShowings.rows.length / maxFlexItems)
     logger.info(`LINE Flex ${totalFlexGroups} scale`)
