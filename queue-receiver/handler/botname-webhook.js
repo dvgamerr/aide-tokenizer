@@ -107,7 +107,7 @@ export default async ({ logger, db, headers, body, params }) => {
   }
 
   if (isActive && messages.length) await queueSend({ ...optionQueue, timestamp }, messages)
-  logger.debug(`[${params.botName}] active:${isActive} - ${messages.length}`)
+  logger.debug(`[${params.botName}] Active: ${isActive} (${messages.length})`)
 
   return new Response(null, { status: 201 })
 }

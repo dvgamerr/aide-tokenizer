@@ -2,6 +2,7 @@ import flexChatId from '../provider/line/flex-id'
 import { queueRead, queueDelete, queueArchive } from '../provider/db'
 import { sleep } from '../provider/helper'
 import pushMessage from '../provider/line/push-message'
+import preloadAnimation from '../provider/line/preload-animation'
 import pkg from '../package.json'
 import { logger } from '../provider/helper'
 
@@ -37,6 +38,9 @@ while (true) {
       const question = messages.map((m) => m.text).join(' ')
       logger.info(`[${sessionId}] ${botName}:HM[${chatType}]`)
 
+      if (chatType === 'USER') {
+        await preloadAnimation(accessToken, chatId, 30)
+      }
       const res = await fetch(proxyConfig.url, {
         method: 'POST',
         headers: {
@@ -48,7 +52,6 @@ while (true) {
         body: JSON.stringify({ chatId: sessionId, chatType, question }),
       })
       if (!res.ok) throw new Error(`${res.status} - ${res.statusText}\n${await res.text()}`)
-
       const body = await res.json()
       logger.info(`[${sessionId}] ${botName}:AI[${body.intent}]`)
       await pushMessage(accessToken, chatId, body.answer || body)

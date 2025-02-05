@@ -4,6 +4,10 @@ const baseUrl = Bun.env.FLOWISE_API
 const chatflowId = Bun.env.FLOWISE_ID
 const apiKey = Bun.env.FLOWISE_KEY
 
+if (!baseUrl || !chatflowId || !apiKey) {
+  throw new Error('Missing required environment variables: FLOWISE_API, FLOWISE_ID, or FLOWISE_KEY')
+}
+
 export const flowisePrediction = async (chatId, question) => {
   const options = {
     method: 'POST',

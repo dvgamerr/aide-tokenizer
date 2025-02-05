@@ -1,4 +1,4 @@
-import { logger } from '../logger'
+import { logger } from '../helper'
 import { LINE_API } from '.'
 
 export default async (accessToken, chatId, loadingSeconds) => {
@@ -14,7 +14,7 @@ export default async (accessToken, chatId, loadingSeconds) => {
 
   const data = await res.json()
   if (!res.ok) {
-    logger.debug({ res, data })
+    logger.warn({ res, data })
     throw new Error(`Failed ${res.statusText} (${res.status})`)
   }
 
