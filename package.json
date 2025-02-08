@@ -1,6 +1,6 @@
 {
   "name": "tokenizer",
-  "version": "1.2",
+  "version": "2.3",
   "module": "src/index.js",
   "scripts": {
     "prepare": "husky",
