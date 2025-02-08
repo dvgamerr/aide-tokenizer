@@ -3,11 +3,7 @@ import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 import { ChatOpenAI } from '@langchain/openai'
 import { StateGraph } from '@langchain/langgraph'
-import {
-  MemorySaver,
-  Annotation,
-  messagesStateReducer,
-} from '@langchain/langgraph'
+import { MemorySaver, Annotation, messagesStateReducer } from '@langchain/langgraph'
 import { ToolNode } from '@langchain/langgraph/prebuilt'
 
 // Define the graph state
@@ -24,10 +20,7 @@ const StateAnnotation = Annotation.Root({
 const weatherTool = tool(
   async ({ query }) => {
     // This is a placeholder for the actual implementation
-    if (
-      query.toLowerCase().includes('sf') ||
-      query.toLowerCase().includes('san francisco')
-    ) {
+    if (query.toLowerCase().includes('sf') || query.toLowerCase().includes('san francisco')) {
       return "It's 60 degrees and foggy."
     }
     return "It's 90 degrees and sunny."
@@ -91,10 +84,7 @@ const app = workflow.compile({ checkpointer })
 // Use the Runnable
 const finalState = await app.invoke(
   {
-    messages: [
-      new AIMessage('System: How can I assist you today?'),
-      new HumanMessage('what is the weather in sf'),
-    ],
+    messages: [new AIMessage('System: How can I assist you today?'), new HumanMessage('what is the weather in sf')],
   },
   { configurable: { thread_id: '42' } },
 )
