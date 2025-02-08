@@ -23,7 +23,7 @@ export default async ({ logger, db, headers, body, params }) => {
     `
       SELECT
         n.access_token, n.client_secret, u.api_key, u.admin, u.active, s.session_id,
-        n.proxy, coalesce(u.profile ->> 'displayName', u.chat_id) as display_name
+        n.proxy, coalesce(u.profile ->> 'displayName', u.chat_id) as display_name, u.language
       FROM line_notice n
       LEFT JOIN line_users u ON n.name = u.notice_name AND u.chat_id = $1
       LEFT JOIN line_sessions s ON n.name = s.notice_name AND u.chat_id = s.chat_id
@@ -44,6 +44,7 @@ export default async ({ logger, db, headers, body, params }) => {
     proxyConfig: notice.rows[0]?.proxy,
     displayName: notice.rows[0]?.display_name,
     sessionId: notice.rows[0]?.session_id,
+    language: notice.rows[0]?.language,
   }
 
   if (!cacheToken.apiKey) {

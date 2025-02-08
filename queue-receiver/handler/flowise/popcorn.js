@@ -3,12 +3,6 @@ import { flowisePrediction } from '../../../provider/proxy/flowise'
 const WAIT_QUOTA = 800
 
 const AIDE_API_KEY = Bun.env.AIDE_API_KEY
-const ANSWER = {
-  SERVER_DOWN: {
-    EN: "I'm sorry, I can't help you right now.",
-    TH: 'ขอโทษค่ะ ไม่สามารถให้บริการในขณะนี้',
-  },
-}
 
 export default [
   async ({ db, headers, body }) => {
@@ -29,20 +23,21 @@ export default [
 
       const payload = JSON.stringify({ type: chatType, question, today: new Date().toISOString().substring(0, 10) })
 
-      let result = { answer: ANSWER.SERVER_DOWN[language], language }
+      let result = {}
       while (quotaRetry > 0) {
         const completion = await flowisePrediction(chatId, payload)
+        if (completion.text) {
+          result = JSON.parse(completion.text)
+          break
+        }
         if (completion.error || completion.statusCode === 429) {
           quotaRetry--
           await sleep(WAIT_QUOTA)
           continue
         }
-        try {
-          result = JSON.parse(completion.text)
-        } catch {
-          result = { answer: completion.text }
+        if (completion.statusCode > 210 || !completion.success) {
+          return new Response(completion.message, { status: completion.statusCode })
         }
-        break
       }
       if (language === 'NA') {
         await db.query(`UPDATE line_users SET language = $2 WHERE api_key = $1`, [headers['x-api-key'], result.language.toUpperCase()])

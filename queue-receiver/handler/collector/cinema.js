@@ -1,60 +1,79 @@
 import { t } from 'elysia'
 import dayjs from 'dayjs'
 import weekOfYear from 'dayjs/plugin/weekOfYear'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
 
+dayjs.extend(utc)
+dayjs.extend(timezone)
 dayjs.extend(weekOfYear)
+
+class SQLQueryBuilder {
+  constructor(table, columns) {
+    this.table = table
+    this.columns = columns
+    this.values = []
+    this.where = []
+  }
+
+  add(condition, value) {
+    this.values.push(value)
+    this.where.push(condition.replace(/\?/gi, `$${this.values.length}`))
+  }
+
+  build(extra) {
+    const query = `
+      SELECT ${this.columns}
+      FROM ${this.table}
+      WHERE ${this.where.length ? `${this.where.join(' AND ')}` : ''}
+      ${extra}
+    `
+    return [query, this.values]
+  }
+}
 
 export default [
   async ({ db, query }) => {
-    const { name_en, name_th, release_date } = query
+    const { search, release_date, week, year, genre } = query
+    const sqlBuilder = new SQLQueryBuilder('stash.cinema_showing ', 's_display, t_release, s_genre, n_time, s_url, s_cover, o_theater')
 
-    const filter = []
-    const filterQuery = []
-    let filterLimit = ''
-
-    if (name_en) {
-      filter.push(release_date)
-      filterQuery.push(`s_name_en = $${filter.length}`)
-    } else if (name_th) {
-      filter.push(release_date)
-      filterQuery.push(`s_name_th = $${filter.length}`)
-    }
-    if (release_date) {
+    if (search) {
+      sqlBuilder.add(`(LOWER(s_name_en) LIKE LOWER(?) OR LOWER(s_name_th) LIKE LOWER(?))`, `%${search}%`)
+    } else if (release_date) {
       if (!release_date.match(/^\d{4}-\d{2}-\d{2}$/) || !dayjs(release_date).isValid())
         throw { status: 400, message: 'Invalid release_date' }
 
-      filter.push(release_date)
-      filterQuery.push(`t_release AT TIME ZONE 'Asia/Bangkok' = $${filter.length}`)
+      sqlBuilder.add(`t_release AT TIME ZONE 'Asia/Bangkok' = ?`, release_date)
+    } else if (week || year) {
+      sqlBuilder.add(`n_week = ?`, week)
+      sqlBuilder.add(`n_year = ?`, year)
     }
 
-    if (filter.length === 0) {
-      filter.push(dayjs().week())
-      filterQuery.push(`n_week = $${filter.length}`)
-
-      filter.push(dayjs().year())
-      filterQuery.push(`n_year = $${filter.length}`)
+    if (genre) {
+      sqlBuilder.add(`s_genre LIKE ?`, `%${genre}%`)
     }
-    const sqlquery = `  
-      SELECT s_display, t_release, s_genre, n_time, s_url, s_cover, o_theater
-      FROM "stash"."cinema_showing" 
-      WHERE ${filterQuery.length ? `${filterQuery.join(' AND ')}` : ''}
-      ORDER BY t_release DESC, s_display ASC
-      ${filterLimit}
-    `
 
-    const cinema = await db.query(sqlquery, filter)
+    if (sqlBuilder.values.length === 0 || (!search && genre)) {
+      sqlBuilder.add(`n_week = ?`, dayjs().week())
+      sqlBuilder.add(`n_year = ?`, dayjs().year())
+    }
+
+    const cinemaResults = await db.query(...sqlBuilder.build('ORDER BY t_release DESC, s_display ASC'))
     return (
-      cinema.rows.map((e) => {
-        e.o_theater = Object.keys(e.o_theater)
-        return e
+      cinemaResults.rows.map((row) => {
+        row.t_release = dayjs(row.t_release).tz('Asia/Bangkok').format('YYYY-MM-DD')
+        row.o_theater = Object.keys(row.o_theater)
+        return row
       }) || []
     )
   },
   {
     query: t.Object({
-      name_en: t.Optional(t.String()),
-      name_th: t.Optional(t.String()),
+      search: t.Optional(t.String()),
       release_date: t.Optional(t.String()),
+      genre: t.Optional(t.String()),
+      week: t.Optional(t.Number()),
+      year: t.Optional(t.Number()),
     }),
   },
 ]

@@ -8,6 +8,13 @@ import { logger } from '../provider/helper'
 
 const flexTemplate = { 'get-id': flexChatId }
 
+const ANSWER = {
+  SERVER_DOWN: {
+    EN: "I'm sorry, I can't help you right now.",
+    TH: 'ขอโทษค่ะ ไม่สามารถให้บริการในขณะนี้',
+  },
+}
+
 while (true) {
   const sender = await queueRead()
   if (!sender) {
@@ -38,7 +45,7 @@ while (true) {
       const question = messages.map((m) => m.text).join(' ')
       logger.info(`[${sessionId}] ${botName}:HM[${chatType}]`)
 
-      if (chatType === 'USER') {
+      if (chatType === 'USER' && readCount === 1) {
         await preloadAnimation(accessToken, chatId, 30)
       }
       const res = await fetch(proxyConfig.url, {
@@ -51,17 +58,20 @@ while (true) {
         },
         body: JSON.stringify({ chatId: sessionId, chatType, question }),
       })
-      if (!res.ok) throw new Error(`${res.status} - ${res.statusText}\n${await res.text()}`)
+      if (!res.ok) throw new Error(`${res.status} - \n${await res.text()}`)
       const body = await res.json()
       logger.info(`[${sessionId}] ${botName}:AI[${body.intention}]`)
-      await pushMessage(accessToken, chatId, body.answer || body)
+      if (body.answer) await pushMessage(accessToken, chatId, body.answer)
     } else {
       await pushMessage(accessToken, chatId, messages)
     }
 
     await (Bun.env.NODE_ENV === 'production' ? queueArchive : queueDelete)(msgId)
   } catch (ex) {
-    if (readCount > 3) await queueDelete(msgId)
-    logger.warn(ex)
+    if (readCount > 3) {
+      await queueDelete(msgId)
+      await pushMessage(accessToken, chatId, ANSWER.SERVER_DOWN['TH'])
+    }
+    logger.warn({ error: ex.toString(), msgId })
   }
 }
