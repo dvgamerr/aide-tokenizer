@@ -25,7 +25,7 @@ while (true) {
   const {
     msgId,
     readCount,
-    message: { botName, chatId, messages, chatType, sessionId, proxyConfig, accessToken, apiKey },
+    message: { botName, chatId, messages, chatType, sessionId, proxyConfig, accessToken, apiKey, language },
   } = sender
   const { type: msgType, name: msgName } = messages[0]
 
@@ -70,7 +70,7 @@ while (true) {
   } catch (ex) {
     if (readCount > 3) {
       await queueDelete(msgId)
-      await pushMessage(accessToken, chatId, ANSWER.SERVER_DOWN['TH'])
+      await pushMessage(accessToken, chatId, ANSWER.SERVER_DOWN[language || 'TH'])
     }
     logger.warn({ error: ex.toString(), msgId })
   }
