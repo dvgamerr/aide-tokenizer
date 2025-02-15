@@ -98,6 +98,7 @@ crontab.put('/cinema/:flexType', handlerCrontabCinema, {
   }),
 })
 crontab.put('/gold', handlerCrontabGold, validateAuthLine)
+crontab.get('/gold', handlerCrontabGold, validateAuthLine)
 app.use(crontab)
 
 app.post('/flowise/LINE-popcorn', ...handlerFlowisePopcorn)

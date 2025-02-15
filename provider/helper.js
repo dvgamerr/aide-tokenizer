@@ -29,3 +29,15 @@ export const pushMessageSelf = async (headers, payload) => {
     body: JSON.stringify(payload),
   })
 }
+
+export const fetchSelf = async (method, path, headers, payload) => {
+  return await fetch(`http://localhost:${PORT}/${path}`, {
+    method,
+    headers: {
+      authorization: headers.authorization,
+      'content-type': 'application/json',
+      'User-Agent': userAgent,
+    },
+    body: JSON.stringify(payload),
+  })
+}
