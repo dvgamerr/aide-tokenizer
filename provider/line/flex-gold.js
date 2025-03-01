@@ -2,10 +2,31 @@ import numeral from 'numeral'
 
 const formatMoney = (val, postfix) => `${numeral(val).format('0,0.00')}${postfix ? ` ${postfix}` : ''}`
 
-export default (costTotal, profitTotal, profitPercent, exchange_sale) => {
+const colorMode = {
+  dark: {
+    title: '#ffc107',
+    background: '#1E1E1E',
+    text: '#DDDDDD',
+    muted: '#AAAAAA',
+    highlight: '#1DB446',
+    separator: '#444444',
+  },
+  light: {
+    title: '#ffc107',
+    background: '#F7F7F7',
+    text: '#111111',
+    muted: '#ababab',
+    highlight: '#1DB446',
+    separator: '#E0E0E0',
+  },
+}
+
+export default (costTotal, profitTotal, profitPercent, exchange_sale, mode = 'dark') => {
   const savingsTotal = costTotal + profitTotal
   const savingsTotalTH = savingsTotal * exchange_sale
   const profitTotalTH = profitTotal * exchange_sale
+
+  const color = colorMode[mode]
 
   return {
     type: 'bubble',
@@ -25,12 +46,12 @@ export default (costTotal, profitTotal, profitPercent, exchange_sale) => {
               weight: 'bold',
               size: 'sm',
               margin: 'none',
-              color: '#457B9D',
+              color: color.title,
             },
             {
               type: 'text',
               text: new Date().toISOString().substring(0, 10),
-              color: '#ababab',
+              color: color.muted,
               size: 'xxs',
               align: 'end',
               offsetTop: 'sm',
@@ -41,6 +62,7 @@ export default (costTotal, profitTotal, profitPercent, exchange_sale) => {
         {
           type: 'separator',
           margin: 'sm',
+          color: color.separator,
         },
         {
           type: 'box',
@@ -56,7 +78,7 @@ export default (costTotal, profitTotal, profitPercent, exchange_sale) => {
                   type: 'text',
                   text: 'มูลค่าทองคำรวม',
                   size: 'xs',
-                  color: '#555555',
+                  color: color.text,
                   flex: 4,
                   weight: 'bold',
                 },
@@ -64,7 +86,7 @@ export default (costTotal, profitTotal, profitPercent, exchange_sale) => {
                   type: 'text',
                   text: formatMoney(savingsTotal, 'USD'),
                   size: 'xs',
-                  color: '#111111',
+                  color: color.text,
                   align: 'end',
                   flex: 4,
                 },
@@ -80,7 +102,7 @@ export default (costTotal, profitTotal, profitPercent, exchange_sale) => {
                   type: 'text',
                   text: `(${formatMoney(savingsTotalTH, 'บาท')})`,
                   size: 'xxs',
-                  color: '#ababab',
+                  color: color.muted,
                   align: 'end',
                 },
               ],
@@ -94,7 +116,7 @@ export default (costTotal, profitTotal, profitPercent, exchange_sale) => {
                   type: 'text',
                   text: 'กำไร',
                   size: 'xs',
-                  color: '#1DB446',
+                  color: color.highlight,
                   flex: 4,
                   weight: 'bold',
                 },
@@ -102,7 +124,7 @@ export default (costTotal, profitTotal, profitPercent, exchange_sale) => {
                   type: 'text',
                   text: `(${formatMoney(profitPercent)}%)`,
                   size: 'xxs',
-                  color: '#1DB446',
+                  color: color.highlight,
                   offsetTop: 'xs',
                   align: 'end',
                   flex: 5,
@@ -111,7 +133,7 @@ export default (costTotal, profitTotal, profitPercent, exchange_sale) => {
                   type: 'text',
                   text: formatMoney(profitTotal, 'USD'),
                   size: 'xs',
-                  color: '#1DB446',
+                  color: color.highlight,
                   align: 'end',
                   flex: 5,
                 },
@@ -127,7 +149,7 @@ export default (costTotal, profitTotal, profitPercent, exchange_sale) => {
                   type: 'text',
                   text: `(${formatMoney(profitTotalTH, 'บาท')})`,
                   size: 'xxs',
-                  color: '#ababab',
+                  color: color.muted,
                   align: 'end',
                 },
               ],
@@ -146,7 +168,7 @@ export default (costTotal, profitTotal, profitPercent, exchange_sale) => {
     },
     styles: {
       body: {
-        backgroundColor: '#F7F7F7',
+        backgroundColor: color.background,
       },
       footer: {
         separator: true,
