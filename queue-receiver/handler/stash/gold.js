@@ -1,33 +1,40 @@
-import dayjs from 'dayjs'
-
-const GOLD_API = 'https://register.ylgbullion.co.th/api/price/gold'
+const GOLD_API = 'https://www.goldapi.io/api/XAU/USD'
 export default async ({ db, userAgent }) => {
-  const res = await fetch(GOLD_API, {
+  const gold = await fetch(GOLD_API, {
     method: 'GET',
     headers: {
-      'Accept-Encoding': 'deflate, gzip;q=1.0, *;q=0.5',
-      'User-Agent': userAgent,
-      'Content-Type': 'application/json; charset=utf-8',
+      "Content-Type": "application/json",
+      "x-access-token": Bun.env.GOLD_API_KEY || ''
     },
-  }).then((res) => res.json())
+    redirect: 'follow'
+  })
+  const rates = await fetch("https://www.x-rates.com/calculator/?from=USD&to=THB&amount=1")
 
-  await db.query(
-    `INSERT INTO "stash"."gold" 
-      ("tin", "tout", "tin_ico", "tout_ico", "usd_sale", "usd_buy", "update_at")
-    VALUES 
-      ($1, $2, $3, $4, $5, $6, $7)
-    ON CONFLICT DO NOTHING
-    `,
-    [
-      res.spot.tin,
-      res.spot.tout,
-      res.spot['tin-ico'],
-      res.spot['tout-ico'],
-      parseFloat(res.exchange_sale),
-      parseFloat(res.exchange_buy),
-      dayjs(res.update_date).add(-7, 'hour').toDate(),
-    ],
-  )
+  if (gold.ok && rates.ok) {
+    const goldData = await gold.json()
+    const ratesText = await rates.text()
 
-  return new Response(null, { status: 200 })
+    const usd = parseFloat(ratesText.match(/USD =([\W\w]+?)THB/ig).join('').match(/[.\d]+/ig).join(''))
+    
+    await db.query(
+      `INSERT INTO "stash"."gold" 
+        ("tin", "tout", "tin_ico", "tout_ico", "usd_sale", "usd_buy", "update_at")
+      VALUES 
+        ($1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT DO NOTHING
+      `,
+      [
+        goldData.ask, // tin (price in grams)
+        goldData.bid, // tout (price in grams)
+        goldData.ch > 0 ? 'up' : 'down', // tin_ico
+        goldData.ch > 0 ? 'up' : 'down', // tout_ico
+        isNaN(usd) ? 33 : usd,  // usd_sale
+        isNaN(usd) ? 33 : usd,  // usd_buy
+        new Date(goldData.timestamp * 1000), // Convert Unix timestamp to Date object
+      ],
+    )
+  }
+
+
+  return new Response(JSON.stringify({ gold: gold.status, rates: rates.status }), { status: gold.status })
 }
