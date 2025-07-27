@@ -12,8 +12,6 @@ export class QueueManager {
     if (!this.client) {
       const conn = parseDatabaseUrl(Bun.env.PG_QUEUE_URL)
       const queueConn = await Pgmq.new(conn)
-      logger.info(` - queue in '${this.queueName}' connecting...`)
-
       let queueCreated = false
       for await (const e of await queueConn.queue.list()) {
         if (e === this.queueName) queueCreated = true

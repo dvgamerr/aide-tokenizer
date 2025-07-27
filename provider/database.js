@@ -17,8 +17,6 @@ class DatabaseManager {
     }
 
     const pgConn = parseDatabaseUrl(this.connectionUrl)
-    logger.info(` - database '${pgConn.database}' connecting...`)
-
     try {
       this.queryClient = postgres(this.connectionUrl)
       this.db = drizzle({ client: this.queryClient }, { schema })
