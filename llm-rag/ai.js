@@ -1,10 +1,10 @@
-import { HumanMessage, AIMessage } from '@langchain/core/messages'
+import { AIMessage, HumanMessage } from '@langchain/core/messages'
 import { tool } from '@langchain/core/tools'
-import { z } from 'zod'
-import { ChatOpenAI } from '@langchain/openai'
 import { StateGraph } from '@langchain/langgraph'
-import { MemorySaver, Annotation, messagesStateReducer } from '@langchain/langgraph'
+import { Annotation, MemorySaver, messagesStateReducer } from '@langchain/langgraph'
 import { ToolNode } from '@langchain/langgraph/prebuilt'
+import { ChatOpenAI } from '@langchain/openai'
+import { z } from 'zod'
 
 // Define the graph state
 // See here for more info: https://langchain-ai.github.io/langgraphjs/how-tos/define-state/
@@ -26,8 +26,8 @@ const weatherTool = tool(
     return "It's 90 degrees and sunny."
   },
   {
-    name: 'weather',
     description: 'Call to get the current weather for a location.',
+    name: 'weather',
     schema: z.object({
       query: z.string().describe('The query to use in your search.'),
     }),
@@ -42,6 +42,15 @@ const model = new ChatOpenAI({
   temperature: 0.6,
 }).bindTools(tools)
 
+// Define the function that calls the model
+async function callModel(state) {
+  const messages = state.messages
+  const response = await model.invoke(messages)
+
+  // We return a list, because this will get added to the existing list
+  return { messages: [response] }
+}
+
 // Define the function that determines whether to continue or not
 // We can extract the state typing via `StateAnnotation.State`
 function shouldContinue(state) {
@@ -54,15 +63,6 @@ function shouldContinue(state) {
   }
   // Otherwise, we stop (reply to the user)
   return '__end__'
-}
-
-// Define the function that calls the model
-async function callModel(state) {
-  const messages = state.messages
-  const response = await model.invoke(messages)
-
-  // We return a list, because this will get added to the existing list
-  return { messages: [response] }
 }
 
 // Define a new graph

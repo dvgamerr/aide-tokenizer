@@ -59,7 +59,7 @@ export const setupGracefulShutdown = (app, db, logger) => {
   })
 
   process.once('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled rejection', { reason, promise })
+    logger.error('Unhandled rejection', { promise, reason })
     gracefulShutdownWithTimeout('unhandledRejection', app, db, logger)
   })
 }

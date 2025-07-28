@@ -1,4 +1,5 @@
 import pino from 'pino'
+
 import { name, version as packageVersion } from '../package.json'
 
 export const PORT = Bun.env.PORT || 3000
@@ -14,12 +15,12 @@ export const logger = pino({
 export const parseDatabaseUrl = (url) => {
   const uri = new URL(url)
   return {
-    user: uri.username,
-    password: uri.password,
-    host: uri.hostname,
-    port: uri.port,
     database: uri.pathname.split('/')[1],
+    host: uri.hostname,
+    password: uri.password,
+    port: uri.port,
     ssl: false,
+    user: uri.username,
   }
 }
 
@@ -27,30 +28,30 @@ export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 export const getAuthAPIKey = (headers) => {
   const [, token] = headers.authorization.split(' ')
   const [botName, apiKey] = atob(token).split(':')
-  return { botName, apiKey }
+  return { apiKey, botName }
 }
 
 export const pushMessageSelf = async (headers, payload) => {
   return await fetch(`http://localhost:${PORT}/`, {
-    method: 'PUT',
+    body: JSON.stringify(payload),
     headers: {
       authorization: headers.authorization,
       'content-type': 'application/json',
       'User-Agent': userAgent,
     },
-    body: JSON.stringify(payload),
+    method: 'PUT',
   })
 }
 
 export const fetchSelf = async (method, path, headers, payload) => {
   return await fetch(`http://localhost:${PORT}/${path}`, {
-    method,
+    body: JSON.stringify(payload),
     headers: {
       authorization: headers.authorization,
       'content-type': 'application/json',
       'User-Agent': userAgent,
     },
-    body: JSON.stringify(payload),
+    method,
   })
 }
 

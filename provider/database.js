@@ -1,5 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+
 import { logger, parseDatabaseUrl } from './helper'
 import * as schema from './schema'
 
@@ -43,15 +44,15 @@ class DatabaseManager {
     }
   }
 
+  getConnectionStatus() {
+    return this.isConnected
+  }
+
   async getDatabase() {
     if (!this.isConnected || !this.db) {
       return await this.connect()
     }
     return this.db
-  }
-
-  getConnectionStatus() {
-    return this.isConnected
   }
 
   async healthCheck() {
@@ -60,9 +61,9 @@ class DatabaseManager {
         await this.connect()
       }
       await this.db.execute('SELECT 1')
-      return { status: 'healthy', connected: true }
+      return { connected: true, status: 'healthy' }
     } catch (err) {
-      return { status: 'unhealthy', connected: false, error: err.message }
+      return { connected: false, error: err.message, status: 'unhealthy' }
     }
   }
 }

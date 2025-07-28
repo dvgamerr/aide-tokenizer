@@ -1,4 +1,5 @@
 import { Pgmq } from 'pgmq-js'
+
 import { logger, parseDatabaseUrl } from './helper'
 
 // Queue Manager Class for easier usage
@@ -6,6 +7,20 @@ export class QueueManager {
   constructor() {
     this.client = null
     this.queueName = Bun.env.PG_QUEUE_NAME || 'notice_queue'
+  }
+
+  // เก็บข้อความไว้ใน archive
+  async archive(msgId) {
+    await this.init()
+    logger.info(`[queue:archived] Id: ${msgId}`)
+    return await this.client.msg.archive(this.queueName, msgId)
+  }
+
+  // ลบข้อความ
+  async delete(msgId) {
+    await this.init()
+    logger.info(`[queue:deleted ] Id: ${msgId}`)
+    return await this.client.msg.delete(this.queueName, msgId)
   }
 
   async init() {
@@ -25,36 +40,6 @@ export class QueueManager {
       this.client = queueConn
     }
     return this
-  }
-
-  // ส่งข้อความไปยัง queue
-  async send(data, messages = []) {
-    await this.init()
-    const msgId = await this.client.msg.send(this.queueName, { ...data, messages })
-    logger.info(`[ queue:sended ] Id: ${msgId}`)
-    return msgId
-  }
-
-  // อ่านข้อความจาก queue
-  async read(limit = 10) {
-    await this.init()
-    const message = await this.client.msg.read(this.queueName, limit)
-    if (message) logger.info(`[queue:messaged] Id: ${message.msgId}`)
-    return message
-  }
-
-  // ลบข้อความ
-  async delete(msgId) {
-    await this.init()
-    logger.info(`[queue:deleted ] Id: ${msgId}`)
-    return await this.client.msg.delete(this.queueName, msgId)
-  }
-
-  // เก็บข้อความไว้ใน archive
-  async archive(msgId) {
-    await this.init()
-    logger.info(`[queue:archived] Id: ${msgId}`)
-    return await this.client.msg.archive(this.queueName, msgId)
   }
 
   // ประมวลผลข้อความแบบ auto (อ่าน -> ประมวลผล -> ลบ/เก็บ)
@@ -77,4 +62,24 @@ export class QueueManager {
       throw error
     }
   }
+
+  // อ่านข้อความจาก queue
+  async read(limit = 10) {
+    await this.init()
+    const message = await this.client.msg.read(this.queueName, limit)
+    if (message) logger.info(`[queue:messaged] Id: ${message.msgId}`)
+    return message
+  }
+
+  // ส่งข้อความไปยัง queue
+  async send(data, messages = []) {
+    await this.init()
+    const msgId = await this.client.msg.send(this.queueName, { ...data, messages })
+    logger.info(`[ queue:sended ] Id: ${msgId}`)
+    return msgId
+  }
 }
+
+const db = new QueueManager()
+
+export default db

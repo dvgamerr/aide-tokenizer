@@ -29,6 +29,7 @@
     "bun-types": "latest",
     "drizzle-kit": "^0.31.4",
     "eslint": "^9.32.0",
+    "eslint-plugin-perfectionist": "^4.15.0",
     "globals": "^16.3.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.2",
