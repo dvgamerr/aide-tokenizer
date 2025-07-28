@@ -4,20 +4,20 @@ const formatMoney = (val, postfix) => `${numeral(val).format('0,0.00')}${postfix
 
 const colorMode = {
   dark: {
-    title: '#ffc107',
     background: '#1E1E1E',
-    text: '#DDDDDD',
-    muted: '#AAAAAA',
     highlight: '#1DB446',
+    muted: '#AAAAAA',
     separator: '#444444',
+    text: '#DDDDDD',
+    title: '#ffc107',
   },
   light: {
-    title: '#ffc107',
     background: '#F7F7F7',
-    text: '#111111',
-    muted: '#ababab',
     highlight: '#1DB446',
+    muted: '#ababab',
     separator: '#E0E0E0',
+    text: '#111111',
+    title: '#ffc107',
   },
 }
 
@@ -29,143 +29,142 @@ export default (costTotal, profitTotal, profitPercent, exchange_sale, mode = 'da
   const color = colorMode[mode]
 
   return {
-    type: 'bubble',
-    size: 'mega',
     body: {
-      type: 'box',
-      layout: 'vertical',
       contents: [
         {
-          type: 'box',
-          layout: 'horizontal',
-          margin: 'md',
           contents: [
             {
-              type: 'text',
-              text: '🪙 ราคาทองคำ',
-              weight: 'bold',
-              size: 'sm',
-              margin: 'none',
               color: color.title,
+              margin: 'none',
+              size: 'sm',
+              text: '🪙 ราคาทองคำ',
+              type: 'text',
+              weight: 'bold',
             },
             {
-              type: 'text',
-              text: new Date().toISOString().substring(0, 10),
-              color: color.muted,
-              size: 'xxs',
               align: 'end',
+              color: color.muted,
               offsetTop: 'sm',
+              size: 'xxs',
+              text: new Date().toISOString().substring(0, 10),
+              type: 'text',
             },
           ],
+          layout: 'horizontal',
+          margin: 'md',
           spacing: 'xs',
-        },
-        {
-          type: 'separator',
-          margin: 'sm',
-          color: color.separator,
-        },
-        {
           type: 'box',
+        },
+        {
+          color: color.separator,
+          margin: 'sm',
+          type: 'separator',
+        },
+        {
+          contents: [
+            {
+              contents: [
+                {
+                  color: color.text,
+                  flex: 4,
+                  size: 'xs',
+                  text: 'มูลค่าทองคำรวม',
+                  type: 'text',
+                  weight: 'bold',
+                },
+                {
+                  align: 'end',
+                  color: color.text,
+                  flex: 4,
+                  size: 'xs',
+                  text: formatMoney(savingsTotal, 'USD'),
+                  type: 'text',
+                },
+              ],
+              layout: 'horizontal',
+              margin: 'none',
+              paddingStart: 'md',
+              type: 'box',
+            },
+            {
+              contents: [
+                {
+                  align: 'end',
+                  color: color.muted,
+                  size: 'xxs',
+                  text: `(${formatMoney(savingsTotalTH, 'บาท')})`,
+                  type: 'text',
+                },
+              ],
+              layout: 'horizontal',
+              paddingStart: 'md',
+              type: 'box',
+            },
+            {
+              contents: [
+                {
+                  color: color.highlight,
+                  flex: 4,
+                  size: 'xs',
+                  text: 'กำไร',
+                  type: 'text',
+                  weight: 'bold',
+                },
+                {
+                  align: 'end',
+                  color: color.highlight,
+                  flex: 5,
+                  offsetTop: 'xs',
+                  size: 'xxs',
+                  text: `(${formatMoney(profitPercent)}%)`,
+                  type: 'text',
+                },
+                {
+                  align: 'end',
+                  color: color.highlight,
+                  flex: 5,
+                  size: 'xs',
+                  text: formatMoney(profitTotal, 'USD'),
+                  type: 'text',
+                },
+              ],
+              layout: 'horizontal',
+              margin: 'md',
+              paddingStart: 'md',
+              type: 'box',
+            },
+            {
+              contents: [
+                {
+                  align: 'end',
+                  color: color.muted,
+                  size: 'xxs',
+                  text: `(${formatMoney(profitTotalTH, 'บาท')})`,
+                  type: 'text',
+                },
+              ],
+              layout: 'horizontal',
+              paddingStart: 'md',
+              type: 'box',
+            },
+          ],
           layout: 'vertical',
           margin: 'md',
           spacing: 'none',
-          contents: [
-            {
-              type: 'box',
-              layout: 'horizontal',
-              contents: [
-                {
-                  type: 'text',
-                  text: 'มูลค่าทองคำรวม',
-                  size: 'xs',
-                  color: color.text,
-                  flex: 4,
-                  weight: 'bold',
-                },
-                {
-                  type: 'text',
-                  text: formatMoney(savingsTotal, 'USD'),
-                  size: 'xs',
-                  color: color.text,
-                  align: 'end',
-                  flex: 4,
-                },
-              ],
-              margin: 'none',
-              paddingStart: 'md',
-            },
-            {
-              type: 'box',
-              layout: 'horizontal',
-              contents: [
-                {
-                  type: 'text',
-                  text: `(${formatMoney(savingsTotalTH, 'บาท')})`,
-                  size: 'xxs',
-                  color: color.muted,
-                  align: 'end',
-                },
-              ],
-              paddingStart: 'md',
-            },
-            {
-              type: 'box',
-              layout: 'horizontal',
-              contents: [
-                {
-                  type: 'text',
-                  text: 'กำไร',
-                  size: 'xs',
-                  color: color.highlight,
-                  flex: 4,
-                  weight: 'bold',
-                },
-                {
-                  type: 'text',
-                  text: `(${formatMoney(profitPercent)}%)`,
-                  size: 'xxs',
-                  color: color.highlight,
-                  offsetTop: 'xs',
-                  align: 'end',
-                  flex: 5,
-                },
-                {
-                  type: 'text',
-                  text: formatMoney(profitTotal, 'USD'),
-                  size: 'xs',
-                  color: color.highlight,
-                  align: 'end',
-                  flex: 5,
-                },
-              ],
-              paddingStart: 'md',
-              margin: 'md',
-            },
-            {
-              type: 'box',
-              layout: 'horizontal',
-              contents: [
-                {
-                  type: 'text',
-                  text: `(${formatMoney(profitTotalTH, 'บาท')})`,
-                  size: 'xxs',
-                  color: color.muted,
-                  align: 'end',
-                },
-              ],
-              paddingStart: 'md',
-            },
-          ],
+          type: 'box',
         },
       ],
-      spacing: 'none',
+      layout: 'vertical',
       margin: 'none',
       paddingAll: 'none',
-      paddingTop: 'sm',
       paddingBottom: 'md',
-      paddingStart: 'md',
       paddingEnd: 'md',
+      paddingStart: 'md',
+      paddingTop: 'sm',
+      spacing: 'none',
+      type: 'box',
     },
+    size: 'mega',
     styles: {
       body: {
         backgroundColor: color.background,
@@ -174,5 +173,6 @@ export default (costTotal, profitTotal, profitPercent, exchange_sale, mode = 'da
         separator: true,
       },
     },
+    type: 'bubble',
   }
 }

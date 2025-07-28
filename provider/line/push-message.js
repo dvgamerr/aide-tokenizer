@@ -1,25 +1,25 @@
-import { logger } from '../helper'
 import { LINE_API } from '.'
+import { logger } from '../helper'
 
 export default async (accessToken, chatId, messages) => {
   const payload = {
-    to: chatId,
     messages:
-      typeof messages === 'string' ? [{ type: 'text', text: messages }] : messages.map((e) => (!e.type ? { ...e, type: 'text' } : e)),
+      typeof messages === 'string' ? [{ text: messages, type: 'text' }] : messages.map((e) => (!e.type ? { ...e, type: 'text' } : e)),
+    to: chatId,
   }
 
   const res = await fetch(`${LINE_API}/message/push`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
     body: JSON.stringify(payload),
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    method: 'POST',
   })
 
   const data = await res.json()
   if (!res.ok) {
-    logger.debug({ res, data, payload: payload })
+    logger.debug({ data, payload: payload, res })
     throw new Error(`Failed ${res.statusText} (${res.status})`)
   }
 
