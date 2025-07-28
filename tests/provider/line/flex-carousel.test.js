@@ -1,20 +1,21 @@
-import { describe, it, expect } from 'bun:test'
-import generateCarousel from '../../../provider/line/flex-carousel'
+import { describe, expect, it } from 'bun:test'
 import dayjs from 'dayjs'
+
+import generateCarousel from '../../../provider/line/flex-carousel'
 import 'dayjs/locale/th'
 
 describe('generateCarousel', () => {
   const movies = [
     {
-      s_name_th: 'ชื่อหนัง',
-      s_name_en: 'Movie Name',
-      t_release: '2023-10-01',
       n_time: 120,
-      s_cover: 'https://example.com/poster.jpg',
       o_theater: {
         major: { url: 'https://majorcineplex.com' },
         sf: { url: 'https://sfcinema.com' },
       },
+      s_cover: 'https://example.com/poster.jpg',
+      s_name_en: 'Movie Name',
+      s_name_th: 'ชื่อหนัง',
+      t_release: '2023-10-01',
     },
   ]
 
