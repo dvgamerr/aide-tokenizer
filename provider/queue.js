@@ -1,12 +1,16 @@
-import { Pgmq } from 'pgmq-js'
+import { sql } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import postgres from 'postgres'
 
-import { logger, parseDatabaseUrl } from './helper'
+import { logger } from './helper'
 
 // Queue Manager Class for easier usage
 export class QueueManager {
   constructor() {
+    this.db = null
     this.client = null
-    this.queueName = Bun.env.PG_QUEUE_NAME || 'notice_queue'
+    this.queueName = Bun.env.PG_QUEUE_NAME || 'notice'
+    this.connString = Bun.env.PG_QUEUE_URL
   }
 
   // เก็บข้อความไว้ใน archive
@@ -25,21 +29,15 @@ export class QueueManager {
 
   async init() {
     if (!this.client) {
-      const conn = parseDatabaseUrl(Bun.env.PG_QUEUE_URL)
-      const queueConn = await Pgmq.new(conn)
-      let queueCreated = false
-      for await (const e of await queueConn.queue.list()) {
-        if (e === this.queueName) queueCreated = true
-      }
+      this.client = postgres(this.connString)
+      this.db = drizzle({ client: this.client })
 
-      if (!queueCreated) {
+      const list = await this.db.execute(sql`SELECT * FROM pgmq.list_queues() WHERE queue_name = ${this.queueName}`)
+      if (!list.length) {
         logger.info(` - queue '${this.queueName}' is created`)
-        await queueConn.queue.create(this.queueName)
+        await this.db.execute(sql`SELECT * FROM pgmq.create(${this.queueName})`)
       }
-
-      this.client = queueConn
     }
-    return this
   }
 
   // ประมวลผลข้อความแบบ auto (อ่าน -> ประมวลผล -> ลบ/เก็บ)
@@ -74,9 +72,8 @@ export class QueueManager {
   // ส่งข้อความไปยัง queue
   async send(data, messages = []) {
     await this.init()
-    const msgId = await this.client.msg.send(this.queueName, { ...data, messages })
-    logger.info(`[ queue:sended ] Id: ${msgId}`)
-    return msgId
+    const [result] = await this.db.execute(sql`SELECT pgmq.send(${this.queueName}, ${JSON.stringify({ ...data, messages })})`)
+    return result.send
   }
 }
 

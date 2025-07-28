@@ -8,7 +8,7 @@ import queue from '../provider/queue'
 import handlerBotPushMessage from './handler/botname-push'
 import handlerBotWebhook from './handler/botname-webhook'
 import handlerHealth from './handler/health'
-import { createValidateAuthLine, errorHandler, responseLogger, swaggerConfig } from './middleware'
+import { createValidateAuthLine, errorHandler, responseLogger, swaggerConfig, traceIdMiddleware } from './middleware'
 // import handlerCollectorGold from './handler/collector/gold-oz'
 // import handlerCollectorCinema from './handler/collector/cinema'
 // import handlerStashCinema from './handler/stash/cinema'
@@ -28,6 +28,8 @@ const validateAuthLine = createValidateAuthLine(stmt)
 // Initialize Elysia app with decorations
 const app = new Elysia()
   .use(swagger(swaggerConfig))
+  .state('traceId', '')
+  .onBeforeHandle(traceIdMiddleware.beforeHandle)
   .decorate({ db: stmt, logger: logger, queue: queue, userAgent })
   .onError((context) => errorHandler(context, logger))
   .onAfterResponse((context) => responseLogger(context, logger))

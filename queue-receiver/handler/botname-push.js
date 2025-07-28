@@ -1,7 +1,8 @@
 import { getAuthAPIKey } from '../../provider/helper'
 import queue from '../../provider/queue'
 
-export default async ({ body, db, headers, logger, query }) => {
+export default async ({ body, db, headers, logger, query, store }) => {
+  const traceId = store?.traceId
   const { apiKey, botName } = getAuthAPIKey(headers)
   const text = query.text || body.text
 
@@ -14,7 +15,7 @@ export default async ({ body, db, headers, logger, query }) => {
       return new Response(null, { status: 400 })
     }
     const tokens = (JSON.stringify(body).length / 3.75).toFixed(0)
-    logger.info(`[${botName}] ${tokens} tokens.`)
+    logger.info(`[${traceId}] [${botName}] ${tokens} tokens.`)
 
     const noticeQuery = `
       SELECT

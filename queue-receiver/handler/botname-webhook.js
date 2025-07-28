@@ -10,18 +10,18 @@ const isCommandIncluded = (event, cmd) => {
   return event?.message?.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}.*`, 'ig'))
 }
 
-const calculateTokens = (events, logger, botName) => {
+const calculateTokens = (traceId, events, logger, botName) => {
   const tokens = (events.map((e) => (e.message.text || '').length).reduce((p, v) => p + v) / 3.75).toFixed(0)
-  logger.info(`[${botName}] ${tokens} tokens.`)
+  logger.info(`[${traceId}] [${botName}] ${tokens} tokens.`)
   return tokens
 }
 
-const validateSignature = (body, clientSecret, lineSignature, logger, botName) => {
+const validateSignature = (traceId, body, clientSecret, lineSignature, logger, botName) => {
   const expectedSignature = crypto.createHmac('SHA256', clientSecret).update(JSON.stringify(body)).digest('base64')
   const isValid = lineSignature === expectedSignature
 
   if (!isValid) {
-    logger.warn(`[${botName}] ${lineSignature} signature failure.`)
+    logger.warn(`[${traceId}] [${botName}] ${lineSignature} signature failure.`)
   }
 
   return isValid
@@ -148,7 +148,9 @@ const processEvents = async (queue, events, options) => {
   return { messages, timestamp }
 }
 
-export default async ({ body, db, headers, logger, params, queue }) => {
+export default async ({ body, db, headers, logger, params, queue, store }) => {
+  const traceId = store?.traceId
+
   if (params.channel.toLowerCase() === 'line') {
     // ตรวจสอบ signature ของ LINE
     if (!headers['x-line-signature']) return new Response(null, { status: 404 })
@@ -157,7 +159,7 @@ export default async ({ body, db, headers, logger, params, queue }) => {
     }
 
     // คำนวณจำนวน tokens
-    calculateTokens(body.events, logger, params.botName)
+    calculateTokens(traceId, body.events, logger, params.botName)
 
     // ดึงข้อมูล chat และ user
     const chatId = getChatId(body.events[0])
@@ -188,13 +190,13 @@ export default async ({ body, db, headers, logger, params, queue }) => {
     const lineSignature = headers['x-line-signature']
 
     // ตรวจสอบ signature
-    if (!validateSignature(body, clientSecret, lineSignature, logger, params.botName)) {
+    if (!validateSignature(traceId, body, clientSecret, lineSignature, logger, params.botName)) {
       return new Response(null, { status: 401 })
     }
 
     // สร้าง session ถ้ายังไม่มี
     let sessionId = await ensureSessionExists(db, chatId, params.botName, cacheToken.sessionId)
-    logger.debug(`[${params.botName}] sessionId: ${sessionId}`)
+    logger.debug(`[${traceId}] [${params.botName}] sessionId: ${sessionId}`)
 
     // ประมวลผล events
     const { messages, timestamp } = await processEvents(queue, body.events, {
@@ -213,7 +215,7 @@ export default async ({ body, db, headers, logger, params, queue }) => {
       await queue.send({ ...cacheToken, botName: params.botName, chatId, chatType, sessionId, timestamp }, messages)
     }
 
-    logger.debug(`[${params.botName}] Active: ${isActive} (${messages.length})`)
+    logger.debug(`[${traceId}] [${params.botName}] Active: ${isActive} (${messages.length})`)
     return new Response(null, { status: 201 })
   } else {
     return new Response(null, { status: 404 })

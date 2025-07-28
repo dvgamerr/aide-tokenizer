@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { sql } from 'drizzle-orm'
 
 import { version } from '../package.json'
@@ -23,28 +24,53 @@ export const swaggerConfig = {
   path: '/docs',
 }
 
+// Trace ID middleware
+export const traceIdMiddleware = {
+  beforeHandle({ headers, set, store }) {
+    // Get trace-id from headers or generate a new one
+    const traceId = headers['x-trace-id'] || headers['trace-id'] || randomUUID()
+
+    // Add trace-id to response headers
+    set.headers['x-trace-id'] = traceId
+
+    // Store trace-id in the store for use in other parts of the request lifecycle
+    store.traceId = traceId
+  },
+}
+
 // Error handling function
-export const errorHandler = ({ code, error, path }, logger) => {
+export const errorHandler = ({ code, error, path, store }, logger) => {
   if (code === 'NOT_FOUND') return new Response(code)
 
+  // Get trace-id for error logging
+  const traceId = store?.traceId
+
   // Log error properly with logger instead of console.error
-  logger.error({ code, error: error.message, path, stack: error.stack })
+  logger.error({ code, error: error.message, path, stack: error.stack, traceId })
 
   return {
     error: error.toString().replace('Error: ', ''),
     status: code,
     timestamp: new Date().toISOString(),
+    traceId,
   }
 }
 
 // Response logging function
-export const responseLogger = ({ code, path, request, response, status }, logger) => {
+export const responseLogger = ({ code, path, request, response, status, store }, logger) => {
   if (['/health'].includes(path)) return
+
+  // Extract trace-id from store or response headers
+  const traceId = store?.traceId
+
   const ex = status
   const logError = ex?.code || code > 299
   const logLevel = logError ? 'warn' : 'trace'
   const errorMessage = logError ? ` |${ex?.code || ex?.message?.toString().replace('Error: ', '')}| ` : ' '
-  logger[logLevel](`[${code || response?.status || request.method}] ${path}${errorMessage}${Math.round(performance.now() / 1000)}ms`)
+
+  logger[logLevel](
+    `[${traceId}] [${code || response?.status || request.method}] ${path}${errorMessage}${Math.round(performance.now() / 1000)}ms`,
+  )
 }
 
 // Middleware for validating authorization
