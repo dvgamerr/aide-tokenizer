@@ -18,7 +18,6 @@ import {
 // Custom enums
 export const mangaTypeEnum = pgEnum('manga_type', ['manga', 'manhwa', 'doujin'])
 export const mangaLangEnum = pgEnum('manga_lang', ['TH', 'EN', 'CH', 'JP', 'KR'])
-export const tLangEnum = pgEnum('t_lang', ['TH', 'EN', 'NA'])
 
 // Stash schema
 export const stashSchema = pgSchema('stash')
@@ -58,7 +57,6 @@ export const lineUsers = pgTable(
     apiKey: uuid('api_key').defaultRandom().notNull(),
     chatId: varchar('chat_id', { length: 36 }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    language: tLangEnum('language').default('NA').notNull(),
     noticeName: varchar('notice_name', { length: 20 })
       .notNull()
       .references(() => lineNotice.name),

@@ -1,27 +1,60 @@
 # Aide Tokenizer
 
-This project consists of two main components: `queue-sender` and `queue-receiver`. These components work together to handle message queuing and processing.
+โปรเจคนี้ประกอบด้วย 2 ส่วนหลัก คือ `queue-sender` และ `queue-receiver` ที่ทำงานร่วมกันเพื่อจัดการระบบคิวข้อความและการประมวลผล
 
-## Initialization
+## การติดตั้งเริ่มต้น
 
-To initialize the database, run the following command:
+### 1. เตรียมฐานข้อมูล
 
-```sh
-goose up
+รันคำสั่งนี้เพื่อสร้างฐานข้อมูล:
+
+```bash
+bun drizzle-kit migrate
 ```
 
-## Environment Variables
+### 2. ตั้งค่า Cloudflare Tunnel
 
-- `PORT`: The port on which the server will run (default: 3000).
+เข้าสู่ระบบและสร้าง tunnel:
 
-## Setup
+```bash
+cloudflared login
+cloudflared tunnel create dev
+cloudflared tunnel route dns dev proxy-3000.dvgamerr.app
+```
 
-1. Ensure you have PostgreSQL installed and running.
-2. Create the necessary tables by running the `queue-receiver` script.
-3. Start the `queue-sender` script to begin processing messages.
-4. Start the `queue-receiver` server to handle incoming messages.
+### 3. สร้างไฟล์ config
 
-## Usage
+สร้างไฟล์ `.cloudflared/config.yml` พร้อมเนื้อหาดังนี้:
 
-- Send a POST request to `/:channel/:bot_name` with the appropriate message body to queue a message.
-- Use the `/id` and `/raw` commands within the message body to get specific responses.
+```yaml
+tunnel: ac9b5a64-72db-4e7f-9efd-e3020d6c0f95
+credentials-file: ~/.cloudflared/ac9b5a64-72db-4e7f-9efd-e3020d6c0f95.json
+ingress:
+  - hostname: proxy-3000.dvgamerr.app
+    service: http://localhost:3000
+  - service: http_status:404
+```
+
+### 4. เริ่มต้น tunnel
+
+```bash
+cloudflared tunnel run dev
+```
+
+## ตัวแปรสภาพแวดล้อม
+
+- `PORT`: พอร์ตที่เซิร์ฟเวอร์จะทำงาน (ค่าเริ่มต้น: 3000)
+
+## วิธีการติดตั้งและใช้งาน
+
+### ขั้นตอนการติดตั้ง:
+
+1. ตรวจสอบให้แน่ใจว่าได้ติดตั้ง PostgreSQL แล้วและกำลังทำงานอยู่
+2. สร้างตารางฐานข้อมูลโดยการรัน `queue-receiver`
+3. เริ่มต้น `queue-sender` เพื่อเริ่มประมวลผลข้อความ
+4. เริ่มต้นเซิร์ฟเวอร์ `queue-receiver` เพื่อรับข้อความที่เข้ามา
+
+### วิธีใช้งาน:
+
+- ส่ง POST request ไปที่ `/:channel/:bot_name` พร้อมข้อความที่ต้องการให้เข้าคิว
+- ใช้คำสั่ง `/id` และ `/raw` ในข้อความเพื่อรับการตอบกลับแบบเฉพาะเจาะจง

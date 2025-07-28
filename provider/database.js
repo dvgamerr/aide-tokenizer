@@ -44,27 +44,8 @@ class DatabaseManager {
     }
   }
 
-  getConnectionStatus() {
+  status() {
     return this.isConnected
-  }
-
-  async getDatabase() {
-    if (!this.isConnected || !this.db) {
-      return await this.connect()
-    }
-    return this.db
-  }
-
-  async healthCheck() {
-    try {
-      if (!this.db) {
-        await this.connect()
-      }
-      await this.db.execute('SELECT 1')
-      return { connected: true, status: 'healthy' }
-    } catch (err) {
-      return { connected: false, error: err.message, status: 'unhealthy' }
-    }
   }
 }
 

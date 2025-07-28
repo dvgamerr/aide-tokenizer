@@ -2,7 +2,6 @@ CREATE SCHEMA "stash";
 --> statement-breakpoint
 CREATE TYPE "public"."manga_lang" AS ENUM('TH', 'EN', 'CH', 'JP', 'KR');--> statement-breakpoint
 CREATE TYPE "public"."manga_type" AS ENUM('manga', 'manhwa', 'doujin');--> statement-breakpoint
-CREATE TYPE "public"."t_lang" AS ENUM('TH', 'EN', 'NA');--> statement-breakpoint
 CREATE TABLE "stash"."cinema_showing" (
 	"s_bind" varchar(200),
 	"s_name_en" text NOT NULL,
@@ -53,7 +52,6 @@ CREATE TABLE "line_users" (
 	"active" boolean DEFAULT false NOT NULL,
 	"admin" boolean DEFAULT false NOT NULL,
 	"profile" jsonb DEFAULT '{}',
-	"language" "t_lang" DEFAULT 'NA' NOT NULL,
 	CONSTRAINT "line_users_chat_id_notice_name_pk" PRIMARY KEY("chat_id","notice_name")
 );
 --> statement-breakpoint

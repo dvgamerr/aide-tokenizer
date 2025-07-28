@@ -1,114 +1,217 @@
-import { queueSend } from '../../provider/db'
-import { getChatId, getType } from '../../provider/line'
-import userProfile from '../../provider/line/user-profile'
 import { randomUUIDv7 } from 'bun'
 import crypto from 'crypto'
+import { and, eq, sql } from 'drizzle-orm'
+
+import { getChatId, getType } from '../../provider/line'
+import userProfile from '../../provider/line/user-profile'
+import queue from '../../provider/queue'
+import { lineSessions, lineUsers } from '../../provider/schema'
 
 const isCommandIncluded = (event, cmd) => {
   return event?.message?.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}.*`, 'ig'))
 }
 
-export default async ({ logger, db, headers, body, params }) => {
+const calculateTokens = (events, logger, botName) => {
+  const tokens = (events.map((e) => (e.message.text || '').length).reduce((p, v) => p + v) / 3.75).toFixed(0)
+  logger.info(`[${botName}] ${tokens} tokens.`)
+  return tokens
+}
+
+const validateSignature = (body, clientSecret, lineSignature, logger, botName) => {
+  const expectedSignature = crypto.createHmac('SHA256', clientSecret).update(JSON.stringify(body)).digest('base64')
+  const isValid = lineSignature === expectedSignature
+
+  if (!isValid) {
+    logger.warn(`[${botName}] ${lineSignature} signature failure.`)
+  }
+
+  return isValid
+}
+
+const getUserData = async (db, chatId, botName, channel) => {
+  const [notice] = await db.execute(
+    sql`
+      SELECT
+        n.access_token, n.client_secret, u.api_key, u.admin, u.active, s.session_id,
+        n.proxy, coalesce(u.profile ->> 'displayName', u.chat_id) as display_name, u.language
+      FROM line_notice n
+      LEFT JOIN line_users u ON n.name = u.notice_name AND u.chat_id = ${chatId}
+      LEFT JOIN line_sessions s ON n.name = s.notice_name AND u.chat_id = s.chat_id
+      WHERE n.name = ${botName} AND lower(provider) = ${channel.toLowerCase()}
+    `,
+  )
+
+  return notice
+}
+
+const createUserIfNotExists = async (db, chatId, botName, apiKey) => {
+  if (apiKey) return
+
+  const result = await db.insert(lineUsers).values({
+    chatId: chatId,
+    noticeName: botName,
+  })
+
+  console.log({ lineUsersId: result })
+}
+
+const ensureSessionExists = async (db, chatId, botName, sessionId) => {
+  if (sessionId) return sessionId
+
+  sessionId = randomUUIDv7()
+  await db
+    .insert(lineSessions)
+    .values({
+      chatId: chatId,
+      noticeName: botName,
+      sessionId: sessionId,
+    })
+    .onConflictDoNothing()
+  return sessionId
+}
+
+const handleAdminCommands = async (event, isAdmin, optionQueue, queue) => {
+  if (!isAdmin) return false
+
+  if (isCommandIncluded(event, 'raw')) {
+    const tempOption = { ...optionQueue }
+    delete tempOption.sessionId
+    await queue.send(tempOption, [{ sender: { name: 'admin' }, text: JSON.stringify(event, null, 2), type: 'text' }])
+    return true
+  }
+
+  return false
+}
+
+const handleIdCommand = async (event, optionQueue, queue, chatId) => {
+  if (isCommandIncluded(event, 'id')) {
+    const tempOption = { ...optionQueue }
+    delete tempOption.sessionId
+    await queue.send(tempOption, [{ chatId, name: 'get-id', sender: { name: 'admin' }, type: 'template' }])
+    return true
+  }
+  return false
+}
+
+const handleImCommand = async (event, optionQueue, queue, chatType, accessToken, chatId, apiKey, db, botName, params) => {
+  if (isCommandIncluded(event, 'im')) {
+    const tempOption = { ...optionQueue }
+    delete tempOption.sessionId
+
+    const profile = chatType === 'USER' ? await userProfile(accessToken, chatId) : { displayName: 'Group' }
+
+    if (event.message.text.trim().includes(apiKey)) {
+      await db
+        .update(lineUsers)
+        .set({
+          active: true,
+          profile: profile,
+        })
+        .where(and(eq(lineUsers.chatId, chatId), eq(lineUsers.noticeName, params.botName)))
+      await queue.send(tempOption, [{ sender: { name: 'admin' }, text: `Hi, ${profile.displayName}`, type: 'text' }])
+    } else {
+      await queue.send(tempOption, [{ sender: { name: 'admin' }, text: `${profile.displayName}, Nope! 😅 `, type: 'text' }])
+    }
+    return true
+  }
+  return false
+}
+
+const processEvents = async (events, options) => {
+  const { accessToken, apiKey, chatId, chatType, db, isAdmin, optionQueue, params } = options
+  let messages = []
+  let timestamp = 0
+
+  for await (const event of events) {
+    // ตรวจสอบคำสั่ง admin
+    if (await handleAdminCommands(event, isAdmin, optionQueue, queue)) {
+      continue
+    }
+
+    // ตรวจสอบคำสั่ง id
+    if (await handleIdCommand(event, optionQueue, queue, chatId)) {
+      continue
+    }
+
+    // ตรวจสอบคำสั่ง im
+    if (await handleImCommand(event, optionQueue, queue, chatType, accessToken, chatId, apiKey, db, params.botName, params)) {
+      continue
+    }
+
+    // เก็บ timestamp และ message ปกติ
+    timestamp = event.timestamp
+    messages.push(Object.assign(event.message, { replyToken: event.replyToken }))
+  }
+
+  return { messages, timestamp }
+}
+
+export default async ({ body, db, headers, logger, params }) => {
+  // ตรวจสอบ signature ของ LINE
   if (!headers['x-line-signature']) return new Response(null, { status: 404 })
   if (!body.events[0]?.type || body.events[0]?.type == 'postback') {
     return new Response(null, { status: 201 })
   }
 
-  const tokens = (body.events.map((e) => (e.message.text || '').length).reduce((p, v) => p + v) / 3.75).toFixed(0)
-  logger.info(`[${params.botName}] ${tokens} tokens.`)
+  console.log(body)
 
+  // คำนวณจำนวน tokens
+  calculateTokens(body.events, logger, params.botName)
+
+  // ดึงข้อมูล chat และ user
   const chatId = getChatId(body.events[0])
   const chatType = getType(body.events[0])
-  const notice = await db.query(
-    `
-      SELECT
-        n.access_token, n.client_secret, u.api_key, u.admin, u.active, s.session_id,
-        n.proxy, coalesce(u.profile ->> 'displayName', u.chat_id) as display_name, u.language
-      FROM line_notice n
-      LEFT JOIN line_users u ON n.name = u.notice_name AND u.chat_id = $1
-      LEFT JOIN line_sessions s ON n.name = s.notice_name AND u.chat_id = s.chat_id
-      WHERE n.name = $2 AND provider = $3
-    `,
-    [chatId, params.botName, params.channel.toUpperCase()],
-  )
-  if (!notice.rowCount) {
+
+  const userData = await getUserData(db, chatId, params.botName, params.channel)
+  if (!userData) {
     return new Response(null, { status: 401 })
   }
 
+  // สร้าง cache token object
   const cacheToken = {
-    accessToken: notice.rows[0]?.access_token,
-    clientSecret: notice.rows[0]?.client_secret,
-    apiKey: notice.rows[0]?.api_key,
-    isAdmin: notice.rows[0]?.admin,
-    isActive: notice.rows[0]?.active,
-    proxyConfig: notice.rows[0]?.proxy,
-    displayName: notice.rows[0]?.display_name,
-    sessionId: notice.rows[0]?.session_id,
-    language: notice.rows[0]?.language,
+    accessToken: userData.access_token,
+    apiKey: userData.api_key,
+    clientSecret: userData.client_secret,
+    displayName: userData.display_name,
+    isActive: userData.active,
+    isAdmin: userData.admin,
+    language: userData.language,
+    proxyConfig: userData.proxy,
+    sessionId: userData.session_id,
   }
 
-  if (!cacheToken.apiKey) {
-    await db.query('INSERT INTO line_users (chat_id, notice_name) VALUES ($1, $2)', [chatId, params.botName])
-  }
-  const { accessToken, clientSecret, apiKey, isAdmin, isActive } = cacheToken
-  let { sessionId } = cacheToken
+  // สร้าง user ใหม่ถ้ายังไม่มี
+  await createUserIfNotExists(db, chatId, params.botName, cacheToken.apiKey)
+
+  const { accessToken, apiKey, clientSecret, isActive, isAdmin } = cacheToken
   const lineSignature = headers['x-line-signature']
 
-  if (lineSignature !== crypto.createHmac('SHA256', clientSecret).update(JSON.stringify(body)).digest('base64')) {
-    logger.warn(`[${params.botName}] ${lineSignature} signature failure.`)
+  // ตรวจสอบ signature
+  if (!validateSignature(body, clientSecret, lineSignature, logger, params.botName)) {
     return new Response(null, { status: 401 })
   }
 
+  // สร้าง session ถ้ายังไม่มี
+  let sessionId = await ensureSessionExists(db, chatId, params.botName, cacheToken.sessionId)
   logger.debug(`[${params.botName}] sessionId: ${sessionId}`)
-  if (!sessionId) {
-    sessionId = randomUUIDv7()
-    await db.query(
-      `
-        INSERT INTO line_sessions (chat_id, notice_name, session_id) VALUES ($1, $2, $3)
-        ON CONFLICT (chat_id, notice_name) DO NOTHING
-        `,
-      [chatId, params.botName, sessionId],
-    )
+
+  // ประมวลผล events
+  const { messages, timestamp } = await processEvents(body.events, {
+    accessToken,
+    apiKey,
+    chatId,
+    chatType,
+    db,
+    isAdmin,
+    optionQueue: { ...cacheToken, botName: params.botName, chatId, chatType, sessionId },
+    params,
+  })
+
+  // ส่งข้อความถ้า user active และมีข้อความ
+  if (isActive && messages.length) {
+    await queue.send({ ...cacheToken, botName: params.botName, chatId, chatType, sessionId, timestamp }, messages)
   }
 
-  let timestamp = 0,
-    messages = []
-
-  const optionQueue = { ...cacheToken, botName: params.botName, chatId, sessionId, chatType }
-  for await (const event of body.events) {
-    if (isAdmin) {
-      if (isCommandIncluded(event, 'raw')) {
-        delete optionQueue.sessionId
-        await queueSend(optionQueue, [{ type: 'text', text: JSON.stringify(event, null, 2), sender: { name: 'admin' } }])
-        continue
-      }
-    }
-    if (isCommandIncluded(event, 'id')) {
-      delete optionQueue.sessionId
-      await queueSend(optionQueue, [{ type: 'template', name: 'get-id', chatId, sender: { name: 'admin' } }])
-      continue
-    } else if (isCommandIncluded(event, 'im')) {
-      delete optionQueue.sessionId
-      const profile = chatType === 'USER' ? await userProfile(accessToken, chatId) : { displayName: 'Group' }
-      if (event.message.text.trim().includes(apiKey)) {
-        await db.query("UPDATE line_users SET active = 't', profile = $3::json WHERE chat_id = $1 AND notice_name = $2", [
-          chatId,
-          params.botName,
-          JSON.stringify(profile),
-        ])
-        await queueSend(optionQueue, [{ type: 'text', text: `Hi, ${profile.displayName}`, sender: { name: 'admin' } }])
-      } else {
-        await queueSend(optionQueue, [{ type: 'text', text: `${profile.displayName}, Nope! 😅 `, sender: { name: 'admin' } }])
-      }
-      continue
-    }
-    timestamp = event.timestamp
-
-    messages.push(Object.assign(event.message, { replyToken: event.replyToken }))
-  }
-
-  if (isActive && messages.length) await queueSend({ ...optionQueue, timestamp }, messages)
   logger.debug(`[${params.botName}] Active: ${isActive} (${messages.length})`)
-
   return new Response(null, { status: 201 })
 }
