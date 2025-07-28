@@ -1,8 +1,8 @@
-import { queueSend } from '../../provider/db'
 import { getAuthAPIKey } from '../../provider/helper'
+import queue from '../../provider/queue'
 
-export default async ({ logger, db, headers, query, body }) => {
-  const { botName, apiKey } = getAuthAPIKey(headers)
+export default async ({ body, db, headers, logger, query }) => {
+  const { apiKey, botName } = getAuthAPIKey(headers)
   const text = query.text || body.text
 
   try {
@@ -22,7 +22,7 @@ export default async ({ logger, db, headers, query, body }) => {
         coalesce(u.profile ->> 'displayName', u.chat_id) as display_name
       FROM line_users u
       INNER JOIN line_notice n ON n.name = u.notice_name
-      WHERE u.active = 't'  AND u.notice_name = $1 AND u.api_key = $2 AND provider = 'LINE'
+      WHERE u.active = 't'  AND u.notice_name = $1 AND u.api_key = $2 AND lower(provider) = 'line'
     `
     const notice = await db.query(noticeQuery, [botName, apiKey])
 
@@ -30,16 +30,16 @@ export default async ({ logger, db, headers, query, body }) => {
       return new Response(null, { status: 401 })
     }
 
-    const { chat_id: chatId, proxy: proxyConfig, access_token: accessToken, display_name: displayName } = notice.rows[0]
-    const messages = body.messages ? body.messages : [text ? { type: 'text', text } : body]
-    await queueSend(
+    const { access_token: accessToken, chat_id: chatId, display_name: displayName, proxy: proxyConfig } = notice.rows[0]
+    const messages = body.messages ? body.messages : [text ? { text, type: 'text' } : body]
+    await queue.send(
       {
-        sessionId: null,
+        accessToken,
         botName,
         chatId,
         displayName,
-        accessToken,
         proxyConfig,
+        sessionId: null,
       },
       messages,
     )

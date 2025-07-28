@@ -7,9 +7,9 @@ import * as schema from './schema'
 class DatabaseManager {
   constructor() {
     this.db = null
-    this.queryClient = null
+    this.client = null
     this.isConnected = false
-    this.connectionUrl = Bun.env.PG_MAIN_URL
+    this.connString = Bun.env.PG_MAIN_URL
   }
 
   async connect() {
@@ -17,14 +17,13 @@ class DatabaseManager {
       return this.db
     }
 
-    const pgConn = parseDatabaseUrl(this.connectionUrl)
     try {
-      this.queryClient = postgres(this.connectionUrl)
-      this.db = drizzle({ client: this.queryClient }, { schema })
+      this.client = postgres(this.connString)
+      this.db = drizzle({ client: this.client }, { schema })
 
       await this.db.execute('SELECT 1')
       this.isConnected = true
-      logger.info(` - database '${pgConn.database}' connected successfully`)
+      logger.info(` - database '${parseDatabaseUrl(this.connString).database}' connected successfully`)
 
       return this.db
     } catch (err) {
@@ -35,9 +34,9 @@ class DatabaseManager {
   }
 
   async disconnect() {
-    if (this.queryClient) {
-      await this.queryClient.end()
-      this.queryClient = null
+    if (this.client) {
+      await this.client.end()
+      this.client = null
       this.db = null
       this.isConnected = false
       logger.info('Database disconnected')

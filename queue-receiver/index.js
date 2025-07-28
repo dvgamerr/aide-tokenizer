@@ -1,5 +1,4 @@
 import { swagger } from '@elysiajs/swagger'
-import { sql } from 'drizzle-orm'
 import { Elysia } from 'elysia'
 
 import db from '../provider/database'
@@ -9,6 +8,7 @@ import queue from '../provider/queue'
 import handlerBotPushMessage from './handler/botname-push'
 import handlerBotWebhook from './handler/botname-webhook'
 import handlerHealth from './handler/health'
+import { createValidateAuthLine, errorHandler, responseLogger, swaggerConfig } from './middleware'
 // import handlerCollectorGold from './handler/collector/gold-oz'
 // import handlerCollectorCinema from './handler/collector/cinema'
 // import handlerStashCinema from './handler/stash/cinema'
@@ -22,82 +22,62 @@ logger.info(`queue-receiver ${version} starting...`)
 const stmt = await db.connect()
 await queue.init()
 
-// Middleware for validating authorization
-const validateAuthLine = {
-  async beforeHandle({ headers, set }) {
-    try {
-      if (!headers?.authorization) throw 'Unauthorized'
-      const [authType, authToken] = headers?.authorization?.split(' ') || []
-      const [allowed] = await stmt.execute(
-        sql`SELECT COUNT(*) auth FROM line_users WHERE active = 't' AND (notice_name || ':' || api_key) = ${atob(authToken)}`,
-      )
-
-      if (!headers?.authorization || !authType || !authToken || allowed.auth === '0') {
-        set.status = 401
-        set.headers['WWW-Authenticate'] = `${authType || 'Basic'} realm='sign', error="invalid_token"`
-        return 'Unauthorized'
-      }
-    } catch (ex) {
-      set.status = 400
-      set.headers['WWW-Authenticate'] = `Basic realm='sign', error="${ex.message || ex}"`
-      return 'Unauthorized'
-    }
-  },
-}
+// Create middleware with database connection
+const validateAuthLine = createValidateAuthLine(stmt)
 
 // Initialize Elysia app with decorations
 const app = new Elysia()
-  .use(
-    swagger({
-      documentation: {
-        info: {
-          title: 'Queue Receiver API',
-          version: '1.0.0',
+  .use(swagger(swaggerConfig))
+  .decorate({ db: stmt, logger: logger, queue: queue, userAgent })
+  .onError((context) => errorHandler(context, logger))
+  .onAfterResponse((context) => responseLogger(context, logger))
+
+// Define routes with Swagger documentation
+app.get('/health', handlerHealth, {
+  detail: {
+    description: 'Returns a simple health check response',
+    summary: 'Health check',
+    tags: ['Health'],
+  },
+})
+
+app.put('/', handlerBotPushMessage, {
+  beforeHandle: validateAuthLine.beforeHandle,
+  detail: {
+    description: 'Send a push message through the bot to LINE users',
+    security: [{ basicAuth: [] }],
+    summary: 'Send message',
+    tags: ['Notify'],
+  },
+})
+
+app.post('/:channel/:botName', handlerBotWebhook, {
+  detail: {
+    description: 'Receives webhook events from LINE platform',
+    parameters: [
+      {
+        description: 'Channel identifier',
+        in: 'path',
+        name: 'channel',
+        required: true,
+        schema: {
+          type: 'string',
         },
       },
-      path: '/docs',
-    }),
-  )
-  .decorate({
-    db: stmt,
-    logger: logger,
-    queue: queue,
-    userAgent,
-  })
-
-// Error handling
-app.onError(({ code, error, path }) => {
-  if (code === 'NOT_FOUND') return new Response(code)
-
-  // Log error properly with logger instead of console.error
-  logger.error({
-    code,
-    error: error.message,
-    path,
-    stack: error.stack,
-  })
-
-  return {
-    error: error.toString().replace('Error: ', ''),
-    status: code,
-    timestamp: new Date().toISOString(),
-  }
+      {
+        description: 'Bot name identifier',
+        in: 'path',
+        name: 'botName',
+        required: true,
+        schema: {
+          type: 'string',
+        },
+      },
+    ],
+    summary: 'Provider webhook',
+    tags: ['Notify'],
+  },
 })
-
-// Response logging
-app.onAfterResponse(({ code, path, request, response, status }) => {
-  if (['/health'].includes(path)) return
-  const ex = status
-  const logError = ex?.code || code > 299
-  const logLevel = logError ? 'warn' : 'trace'
-  const errorMessage = logError ? ` |${ex?.code || ex?.message?.toString().replace('Error: ', '')}| ` : ' '
-  logger[logLevel](`[${code || response?.status || request.method}] ${path}${errorMessage}${Math.round(performance.now() / 1000)}ms`)
-})
-
-// // Define routes
-app.get('/health', handlerHealth)
-app.put('/', handlerBotPushMessage, validateAuthLine)
-app.post('/:channel/:botName', handlerBotWebhook)
 // app.get('/collector/gold', handlerCollectorGold)
 // app.get('/collector/cinema', ...handlerCollectorCinema)
 

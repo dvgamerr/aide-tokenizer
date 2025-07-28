@@ -4,7 +4,6 @@ import { and, eq, sql } from 'drizzle-orm'
 
 import { getChatId, getType } from '../../provider/line'
 import userProfile from '../../provider/line/user-profile'
-import queue from '../../provider/queue'
 import { lineSessions, lineUsers } from '../../provider/schema'
 
 const isCommandIncluded = (event, cmd) => {
@@ -47,12 +46,10 @@ const getUserData = async (db, chatId, botName, channel) => {
 const createUserIfNotExists = async (db, chatId, botName, apiKey) => {
   if (apiKey) return
 
-  const result = await db.insert(lineUsers).values({
+  await db.insert(lineUsers).values({
     chatId: chatId,
     noticeName: botName,
   })
-
-  console.log({ lineUsersId: result })
 }
 
 const ensureSessionExists = async (db, chatId, botName, sessionId) => {
@@ -70,7 +67,9 @@ const ensureSessionExists = async (db, chatId, botName, sessionId) => {
   return sessionId
 }
 
-const handleAdminCommands = async (event, isAdmin, optionQueue, queue) => {
+const handleAdminCommands = async (event, queue, options) => {
+  const { isAdmin, optionQueue } = options
+
   if (!isAdmin) return false
 
   if (isCommandIncluded(event, 'raw')) {
@@ -83,7 +82,9 @@ const handleAdminCommands = async (event, isAdmin, optionQueue, queue) => {
   return false
 }
 
-const handleIdCommand = async (event, optionQueue, queue, chatId) => {
+const handleIdCommand = async (event, queue, options) => {
+  const { chatId, optionQueue } = options
+
   if (isCommandIncluded(event, 'id')) {
     const tempOption = { ...optionQueue }
     delete tempOption.sessionId
@@ -93,7 +94,9 @@ const handleIdCommand = async (event, optionQueue, queue, chatId) => {
   return false
 }
 
-const handleImCommand = async (event, optionQueue, queue, chatType, accessToken, chatId, apiKey, db, botName, params) => {
+const handleImCommand = async (event, queue, options) => {
+  const { accessToken, apiKey, chatId, chatType, db, optionQueue, params } = options
+
   if (isCommandIncluded(event, 'im')) {
     const tempOption = { ...optionQueue }
     delete tempOption.sessionId
@@ -117,24 +120,23 @@ const handleImCommand = async (event, optionQueue, queue, chatType, accessToken,
   return false
 }
 
-const processEvents = async (events, options) => {
-  const { accessToken, apiKey, chatId, chatType, db, isAdmin, optionQueue, params } = options
+const processEvents = async (queue, events, options) => {
   let messages = []
   let timestamp = 0
 
   for await (const event of events) {
     // ตรวจสอบคำสั่ง admin
-    if (await handleAdminCommands(event, isAdmin, optionQueue, queue)) {
+    if (await handleAdminCommands(event, queue, options)) {
       continue
     }
 
     // ตรวจสอบคำสั่ง id
-    if (await handleIdCommand(event, optionQueue, queue, chatId)) {
+    if (await handleIdCommand(event, queue, options)) {
       continue
     }
 
     // ตรวจสอบคำสั่ง im
-    if (await handleImCommand(event, optionQueue, queue, chatType, accessToken, chatId, apiKey, db, params.botName, params)) {
+    if (await handleImCommand(event, queue, options)) {
       continue
     }
 
@@ -146,72 +148,74 @@ const processEvents = async (events, options) => {
   return { messages, timestamp }
 }
 
-export default async ({ body, db, headers, logger, params }) => {
-  // ตรวจสอบ signature ของ LINE
-  if (!headers['x-line-signature']) return new Response(null, { status: 404 })
-  if (!body.events[0]?.type || body.events[0]?.type == 'postback') {
+export default async ({ body, db, headers, logger, params, queue }) => {
+  if (params.channel.toLowerCase() === 'line') {
+    // ตรวจสอบ signature ของ LINE
+    if (!headers['x-line-signature']) return new Response(null, { status: 404 })
+    if (!body.events[0]?.type || body.events[0]?.type == 'postback') {
+      return new Response(null, { status: 201 })
+    }
+
+    // คำนวณจำนวน tokens
+    calculateTokens(body.events, logger, params.botName)
+
+    // ดึงข้อมูล chat และ user
+    const chatId = getChatId(body.events[0])
+    const chatType = getType(body.events[0])
+
+    const userData = await getUserData(db, chatId, params.botName, params.channel)
+    if (!userData) {
+      return new Response(null, { status: 401 })
+    }
+
+    // สร้าง cache token object
+    const cacheToken = {
+      accessToken: userData.access_token,
+      apiKey: userData.api_key,
+      clientSecret: userData.client_secret,
+      displayName: userData.display_name,
+      isActive: userData.active,
+      isAdmin: userData.admin,
+      language: userData.language,
+      proxyConfig: userData.proxy,
+      sessionId: userData.session_id,
+    }
+
+    // สร้าง user ใหม่ถ้ายังไม่มี
+    await createUserIfNotExists(db, chatId, params.botName, cacheToken.apiKey)
+
+    const { accessToken, apiKey, clientSecret, isActive, isAdmin } = cacheToken
+    const lineSignature = headers['x-line-signature']
+
+    // ตรวจสอบ signature
+    if (!validateSignature(body, clientSecret, lineSignature, logger, params.botName)) {
+      return new Response(null, { status: 401 })
+    }
+
+    // สร้าง session ถ้ายังไม่มี
+    let sessionId = await ensureSessionExists(db, chatId, params.botName, cacheToken.sessionId)
+    logger.debug(`[${params.botName}] sessionId: ${sessionId}`)
+
+    // ประมวลผล events
+    const { messages, timestamp } = await processEvents(queue, body.events, {
+      accessToken,
+      apiKey,
+      chatId,
+      chatType,
+      db,
+      isAdmin,
+      optionQueue: { ...cacheToken, botName: params.botName, chatId, chatType, sessionId },
+      params,
+    })
+
+    // ส่งข้อความถ้า user active และมีข้อความ
+    if (isActive && messages.length) {
+      await queue.send({ ...cacheToken, botName: params.botName, chatId, chatType, sessionId, timestamp }, messages)
+    }
+
+    logger.debug(`[${params.botName}] Active: ${isActive} (${messages.length})`)
     return new Response(null, { status: 201 })
+  } else {
+    return new Response(null, { status: 404 })
   }
-
-  console.log(body)
-
-  // คำนวณจำนวน tokens
-  calculateTokens(body.events, logger, params.botName)
-
-  // ดึงข้อมูล chat และ user
-  const chatId = getChatId(body.events[0])
-  const chatType = getType(body.events[0])
-
-  const userData = await getUserData(db, chatId, params.botName, params.channel)
-  if (!userData) {
-    return new Response(null, { status: 401 })
-  }
-
-  // สร้าง cache token object
-  const cacheToken = {
-    accessToken: userData.access_token,
-    apiKey: userData.api_key,
-    clientSecret: userData.client_secret,
-    displayName: userData.display_name,
-    isActive: userData.active,
-    isAdmin: userData.admin,
-    language: userData.language,
-    proxyConfig: userData.proxy,
-    sessionId: userData.session_id,
-  }
-
-  // สร้าง user ใหม่ถ้ายังไม่มี
-  await createUserIfNotExists(db, chatId, params.botName, cacheToken.apiKey)
-
-  const { accessToken, apiKey, clientSecret, isActive, isAdmin } = cacheToken
-  const lineSignature = headers['x-line-signature']
-
-  // ตรวจสอบ signature
-  if (!validateSignature(body, clientSecret, lineSignature, logger, params.botName)) {
-    return new Response(null, { status: 401 })
-  }
-
-  // สร้าง session ถ้ายังไม่มี
-  let sessionId = await ensureSessionExists(db, chatId, params.botName, cacheToken.sessionId)
-  logger.debug(`[${params.botName}] sessionId: ${sessionId}`)
-
-  // ประมวลผล events
-  const { messages, timestamp } = await processEvents(body.events, {
-    accessToken,
-    apiKey,
-    chatId,
-    chatType,
-    db,
-    isAdmin,
-    optionQueue: { ...cacheToken, botName: params.botName, chatId, chatType, sessionId },
-    params,
-  })
-
-  // ส่งข้อความถ้า user active และมีข้อความ
-  if (isActive && messages.length) {
-    await queue.send({ ...cacheToken, botName: params.botName, chatId, chatType, sessionId, timestamp }, messages)
-  }
-
-  logger.debug(`[${params.botName}] Active: ${isActive} (${messages.length})`)
-  return new Response(null, { status: 201 })
 }
