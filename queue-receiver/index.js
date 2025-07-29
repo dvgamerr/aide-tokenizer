@@ -70,6 +70,11 @@ app.put('/', handlerBotPushMessage, {
 })
 
 app.post('/:channel/:botName', handlerBotWebhook, {
+  beforeHandle: async (ctx) => {
+    if (ctx.headers['x-line-signature']) return
+
+    return validateAuthLine.beforeHandle(ctx)
+  },
   detail: {
     description:
       'Receives webhook events from Provider. This endpoint handles various types of events including messages, follows, joins, and other user interactions.',
