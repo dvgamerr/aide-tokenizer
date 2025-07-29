@@ -15,14 +15,11 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core'
 
-// Custom enums
 export const mangaTypeEnum = pgEnum('manga_type', ['manga', 'manhwa', 'doujin'])
 export const mangaLangEnum = pgEnum('manga_lang', ['TH', 'EN', 'CH', 'JP', 'KR'])
 
-// Stash schema
 export const stashSchema = pgSchema('stash')
 
-// Public schema tables
 export const reminder = pgTable('reminder', {
   name: varchar('name', { length: 20 }).primaryKey(),
   note: jsonb('note').default('{}').notNull(),
@@ -65,7 +62,6 @@ export const lineUsers = pgTable(
   (table) => [primaryKey({ columns: [table.chatId, table.noticeName] }), index('line_users_api_key_unique').on(table.apiKey)],
 )
 
-// Stash schema tables
 export const cinemaShowing = stashSchema.table(
   'cinema_showing',
   {

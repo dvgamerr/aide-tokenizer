@@ -4,7 +4,6 @@ import postgres from 'postgres'
 
 import { logger, parseDatabaseUrl } from './helper'
 
-// Queue Manager Class for easier usage
 export class QueueManager {
   constructor() {
     this.db = null
@@ -13,14 +12,12 @@ export class QueueManager {
     this.connString = Bun.env.PG_QUEUE_URL
   }
 
-  // เก็บข้อความไว้ใน archive
   async archive(msgId) {
     await this.init()
     logger.info(`[queue:archived] Id: ${msgId}`)
     return await this.client.msg.archive(this.queueName, msgId)
   }
 
-  // ลบข้อความ
   async delete(msgId) {
     await this.init()
     logger.info(`[queue:deleted ] Id: ${msgId}`)
@@ -41,7 +38,6 @@ export class QueueManager {
     }
   }
 
-  // ประมวลผลข้อความแบบ auto (อ่าน -> ประมวลผล -> ลบ/เก็บ)
   async process(handler, options = {}) {
     const { autoDelete = true, limit = 10 } = options
 
@@ -62,7 +58,6 @@ export class QueueManager {
     }
   }
 
-  // อ่านข้อความจาก queue
   async read(limit = 10) {
     await this.init()
     const message = await this.client.msg.read(this.queueName, limit)
@@ -70,7 +65,6 @@ export class QueueManager {
     return message
   }
 
-  // ส่งข้อความไปยัง queue
   async send(data, messages = []) {
     await this.init()
     const [result] = await this.db.execute(sql`SELECT pgmq.send(${this.queueName}, ${JSON.stringify({ ...data, messages })})`)

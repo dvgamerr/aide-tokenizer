@@ -7,10 +7,10 @@ import { logger, PORT, userAgent, version } from '../provider/helper'
 import queue from '../provider/queue'
 import handlerBotPushMessage from './handler/botname-push'
 import handlerBotWebhook from './handler/botname-webhook'
+import handlerCollector from './handler/collector'
 import handlerHealth from './handler/health'
+import handlerStash from './handler/stash'
 import { createValidateAuthLine, errorHandler, responseLogger, swaggerConfig, traceIdMiddleware } from './middleware'
-// import handlerCollectorGold from './handler/collector/gold-oz'
-// import handlerCollectorCinema from './handler/collector/cinema'
 // import handlerStashCinema from './handler/stash/cinema'
 // import handlerStashGold from './handler/stash/gold'
 // import handlerCrontabGold from './handler/crontab/gold'
@@ -80,8 +80,9 @@ app.post('/:channel/:botName', handlerBotWebhook, {
     tags: ['Notify'],
   },
 })
-// app.get('/collector/gold', handlerCollectorGold)
-// app.get('/collector/cinema', ...handlerCollectorCinema)
+
+app.use(handlerCollector)
+app.use(handlerStash)
 
 // // Define stash routes
 // const stash = new Elysia({ prefix: '/stash' })
