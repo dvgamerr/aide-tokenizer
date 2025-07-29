@@ -65,7 +65,7 @@ export const responseLogger = ({ code, path, request, response, status, store },
 
   const ex = status
   const logError = ex?.code || code > 299
-  const logLevel = logError ? 'warn' : 'trace'
+  const logLevel = logError ? 'warn' : 'info'
   const errorMessage = logError ? ` |${ex?.code || ex?.message?.toString().replace('Error: ', '')}| ` : ' '
 
   logger[logLevel](

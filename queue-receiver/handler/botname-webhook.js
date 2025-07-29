@@ -94,35 +94,32 @@ const handleIdCommand = async (event, queue, options) => {
   return false
 }
 
-const handleImCommand = async (event, queue, options) => {
-  const { accessToken, apiKey, chatId, chatType, db, optionQueue, params } = options
+const handleImCommand = async (event, db, queue, options) => {
+  const { optionQueue } = options
 
   if (isCommandIncluded(event, 'im')) {
     const tempOption = { ...optionQueue }
     delete tempOption.sessionId
 
+    const { accessToken, chatId, chatType, params } = options
     const profile = chatType === 'USER' ? await userProfile(accessToken, chatId) : { displayName: 'Group' }
+    const active = true
+    await db
+      .update(lineUsers)
+      .set({ active, profile })
+      .where(and(eq(lineUsers.chatId, chatId), eq(lineUsers.noticeName, params.botName)))
 
-    if (event.message.text.trim().includes(apiKey)) {
-      await db
-        .update(lineUsers)
-        .set({
-          active: true,
-          profile: profile,
-        })
-        .where(and(eq(lineUsers.chatId, chatId), eq(lineUsers.noticeName, params.botName)))
-      await queue.send(tempOption, [{ sender: { name: 'admin' }, text: `Hi, ${profile.displayName}`, type: 'text' }])
-    } else {
-      await queue.send(tempOption, [{ sender: { name: 'admin' }, text: `${profile.displayName}, Nope! 😅 `, type: 'text' }])
-    }
+    await queue.send(tempOption, [{ sender: { name: 'admin' }, text: `Hi, ${profile.displayName}`, type: 'text' }])
+
     return true
   }
   return false
 }
 
-const processEvents = async (queue, events, options) => {
+const processEvents = async (db, queue, events, options) => {
   let messages = []
   let timestamp = 0
+  let active = false
 
   for await (const event of events) {
     // ตรวจสอบคำสั่ง admin
@@ -136,7 +133,8 @@ const processEvents = async (queue, events, options) => {
     }
 
     // ตรวจสอบคำสั่ง im
-    if (await handleImCommand(event, queue, options)) {
+    if (await handleImCommand(event, db, queue, options)) {
+      active = true
       continue
     }
 
@@ -145,7 +143,7 @@ const processEvents = async (queue, events, options) => {
     messages.push(Object.assign(event.message, { replyToken: event.replyToken }))
   }
 
-  return { messages, timestamp }
+  return { active, messages, timestamp }
 }
 
 export default async ({ body, db, headers, logger, params, queue, store }) => {
@@ -186,7 +184,7 @@ export default async ({ body, db, headers, logger, params, queue, store }) => {
     // สร้าง user ใหม่ถ้ายังไม่มี
     await createUserIfNotExists(db, chatId, params.botName, cacheToken.apiKey)
 
-    const { accessToken, apiKey, clientSecret, isActive, isAdmin } = cacheToken
+    const { accessToken, clientSecret, isActive, isAdmin } = cacheToken
     const lineSignature = headers['x-line-signature']
 
     // ตรวจสอบ signature
@@ -199,15 +197,14 @@ export default async ({ body, db, headers, logger, params, queue, store }) => {
     logger.debug(`[${traceId}] [${params.botName}] sessionId: ${sessionId}`)
 
     // ประมวลผล events
-    const { messages, timestamp } = await processEvents(queue, body.events, {
+    const { active, messages, timestamp } = await processEvents(db, queue, body.events, {
       accessToken,
-      apiKey,
       chatId,
       chatType,
-      db,
       isAdmin,
       optionQueue: { ...cacheToken, botName: params.botName, chatId, chatType, sessionId },
       params,
+      traceId,
     })
 
     // ส่งข้อความถ้า user active และมีข้อความ
@@ -215,7 +212,7 @@ export default async ({ body, db, headers, logger, params, queue, store }) => {
       await queue.send({ ...cacheToken, botName: params.botName, chatId, chatType, sessionId, timestamp }, messages)
     }
 
-    logger.debug(`[${traceId}] [${params.botName}] Active: ${isActive} (${messages.length})`)
+    logger.debug(`[${traceId}] [${params.botName}] Active: ${active ? active : isActive} (${messages.length})`)
     return new Response(null, { status: 201 })
   } else {
     return new Response(null, { status: 404 })
