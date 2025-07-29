@@ -1,11 +1,17 @@
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
 import { sql } from 'drizzle-orm'
 import numeral from 'numeral'
 
 import { gold, reminder } from '../../../provider/schema.js'
 // import flexGoldMessage from '../../../provider/line/flex-gold'
 
+dayjs.extend(relativeTime)
+
 // export default async ({ db, headers, pkg, request, userAgent }) => {
-export const getGold = async ({ db }) => {
+export const getGold = async ({ db, logger, store }) => {
+  const traceId = store?.traceId
+
   const [goldReminder] = await db.execute(sql`SELECT r.note FROM reminder r WHERE name = 'gold'`)
   let [market] = await db.execute(sql`SELECT * FROM stash.gold ORDER BY update_at DESC LIMIT 1`)
   if (!goldReminder) {
@@ -15,7 +21,7 @@ export const getGold = async ({ db }) => {
     market = { tin: 0, tinIco: 'none', tout: 0, toutIco: 'none', usdBuy: 33.5, usdSale: 34.5 }
     await db.insert(gold).values(market)
   }
-  const { cost } = goldReminder.note
+  const { cost, wallet } = goldReminder.note
 
   const calcGold = cost.map((entry) => {
     const cost = entry.oz * entry.usd
@@ -30,21 +36,23 @@ export const getGold = async ({ db }) => {
 
   const trands = market.tout_ico === 'up' ? 'เพิ่มขึ้น' : 'ลดลง'
 
-  console.log(`🪙 ราคา${trands} ${numeral(market.tout * market.usd_sale).format('0,0')} ${profitPercent}`)
+  logger.info(
+    `[${traceId}] 🪙 ${profitTotal > 0 ? 'กำไร' : 'ขาดทุน'} ${numeral(profitTotal * parseFloat(market.usd_sale)).format('0,0')} บาท (${profitTotal > 0 ? '+' : ''}${profitPercent}%) ราคา${trands} `,
+  )
 
   delete market.tin
   delete market.tin_ico
 
   return {
-    costTotal,
-    exchange: { buy: market.usd_buy, sale: market.usd_sale },
+    exchange: { buy: parseFloat(market.usd_buy), sale: parseFloat(market.usd_sale) },
     profitPercent,
     profitTotal,
     spot: {
-      tout: market.tout,
+      tout: parseFloat(market.tout),
       tout_ico: market.tout_ico,
     },
-    update_date: market.update_date,
+    total: costTotal + wallet,
+    update_at: dayjs(market.update_at).fromNow(),
   }
 }
 

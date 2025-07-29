@@ -78,12 +78,13 @@ export const createValidateAuthLine = (stmt) => ({
   async beforeHandle({ headers, set }) {
     try {
       if (!headers?.authorization) throw 'Unauthorized'
+
       const [authType, authToken] = headers?.authorization?.split(' ') || []
       const [allowed] = await stmt.execute(
         sql`SELECT COUNT(*) auth FROM line_users WHERE active = 't' AND (notice_name || ':' || api_key) = ${atob(authToken)}`,
       )
 
-      if (!headers?.authorization || !authType || !authToken || allowed.auth === '0') {
+      if (!authType || !authToken || allowed.auth === '0') {
         set.status = 401
         set.headers['WWW-Authenticate'] = `${authType || 'Basic'} realm='sign', error="invalid_token"`
         return 'Unauthorized'

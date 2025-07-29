@@ -30,7 +30,7 @@ route.get('/gold', getGold, {
   detail: {
     description:
       'Fetch current gold prices and calculate profit/loss based on stored investment data. Returns cost total, profit calculations, exchange rates, and current spot prices.',
-    summary: 'Get gold price and investment calculations',
+    summary: 'Get gold price',
     tags: ['Collector'],
   },
 })
@@ -68,7 +68,7 @@ route.post('/gold', postGold, {
   detail: {
     description:
       'Update gold investment cost data. Accepts wallet balance and an array of investment entries with USD cost and oz (ounce) values.',
-    summary: 'Update gold investment data',
+    summary: 'Update gold',
     tags: ['Collector'],
   },
 })

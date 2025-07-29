@@ -20,9 +20,7 @@ export default async ({ body, db, headers, logger, query, store }) => {
     }
 
     const tokens = (JSON.stringify(body).length / 3.75).toFixed(0)
-    logger.info(`[${traceId}] [${botName}] Processing ${tokens} tokens`)
-
-    const userQuery = await db.execute(sql`
+    const [user] = await db.execute(sql`
       SELECT
         n.access_token, 
         u.chat_id, 
@@ -36,12 +34,12 @@ export default async ({ body, db, headers, logger, query, store }) => {
         AND lower(provider) = 'line'
     `)
 
-    if (!userQuery.rowCount) {
+    if (!user) {
       logger.warn(`[${traceId}] [${botName}] No active users found for API key`)
       return new Response(null, { status: 401 })
     }
 
-    const { access_token: accessToken, chat_id: chatId, display_name: displayName, proxy: proxyConfig } = userQuery.rows[0]
+    const { access_token: accessToken, chat_id: chatId, display_name: displayName, proxy: proxyConfig } = user
     const messages = body.messages ? body.messages : [text ? { text, type: 'text' } : body]
     await queue.send(
       {
@@ -55,7 +53,7 @@ export default async ({ body, db, headers, logger, query, store }) => {
       messages,
     )
 
-    logger.info(`[${traceId}] [${botName}] Message queued for ${displayName}`)
+    logger.info(`[${traceId}] [${botName}] Message queued for ${displayName} (${tokens} tokens)`)
   } catch (error) {
     logger.error(`[${traceId}] [${botName}] Error: ${error.message}`, { error })
     return new Response(null, { status: 500 })
