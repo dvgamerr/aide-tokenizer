@@ -23,7 +23,7 @@ class DatabaseManager {
 
       await this.db.execute('SELECT 1')
       this.isConnected = true
-      logger.info(` - database '${parseDatabaseUrl(this.connString).database}' connected successfully`)
+      logger.info(` - database '${parseDatabaseUrl(this.connString).database}' connected`)
 
       return this.db
     } catch (err) {

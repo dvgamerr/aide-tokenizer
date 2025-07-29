@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 
-import { logger } from './helper'
+import { logger, parseDatabaseUrl } from './helper'
 
 // Queue Manager Class for easier usage
 export class QueueManager {
@@ -37,6 +37,7 @@ export class QueueManager {
         logger.info(` - queue '${this.queueName}' is created`)
         await this.db.execute(sql`SELECT * FROM pgmq.create(${this.queueName})`)
       }
+      logger.info(` - queue '${parseDatabaseUrl(this.connString).database}' connected.`)
     }
   }
 
