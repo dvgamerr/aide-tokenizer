@@ -176,7 +176,7 @@ export default async ({ body, db, headers, logger, params, queue, store }) => {
 
     const userData = await getLINEData(db, chatId, params.botName, params.channel)
     if (!userData) {
-      return new Response(null, { status: 401 })
+      throw new BadRequestError(401, 'Invalid LINE')
     }
 
     // สร้าง cache token object
@@ -200,7 +200,7 @@ export default async ({ body, db, headers, logger, params, queue, store }) => {
 
     // ตรวจสอบ signature
     if (!validateSignature(traceId, body, clientSecret, lineSignature, logger, params.botName)) {
-      return new Response(null, { status: 401 })
+      throw new BadRequestError(401, 'Invalid LINE signature')
     }
 
     // สร้าง session ถ้ายังไม่มี
@@ -227,8 +227,17 @@ export default async ({ body, db, headers, logger, params, queue, store }) => {
     return new Response(null, { status: 201 })
   } else if (params.channel.toLowerCase() === 'discord') {
     const webhook = await getWebhook(db, params.botName, params.channel)
-    if (!webhook) throw new BadRequestError(400, 'Webhook not found')
+    if (!webhook || !body) throw new BadRequestError(400, 'Webhook not found')
 
-    console.log(webhook)
+    try {
+      if (body.text) {
+        await queue.send({ webhook: webhook.access_token, ...params }, body)
+      }
+      logger.info(`[${traceId}] [${params.botName}] Webhook sent successfully`)
+      return new Response(null, { status: 200 })
+    } catch (error) {
+      logger.error(`[${traceId}] [${params.botName}] Discord webhook error: ${error.message}`)
+      throw new BadRequestError(500, `Discord webhook error: ${error.message}`)
+    }
   }
 }
