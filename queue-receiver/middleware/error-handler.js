@@ -11,7 +11,14 @@ export const errorHandler = ({ code, error, path, store }, logger) => {
   return {
     error: error.toString().replace('Error: ', ''),
     status: code,
-    timestamp: new Date().toISOString(),
-    traceId,
+  }
+}
+
+export class BadRequestError extends Error {
+  constructor(status, message) {
+    super(message)
+    this.code = 'BAD_REQUEST'
+    this.status = status
+    this.message = message
   }
 }

@@ -5,6 +5,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { getChatId, getType } from '../../provider/line'
 import userProfile from '../../provider/line/user-profile'
 import { lineSessions, lineUsers } from '../../provider/schema'
+import { BadRequestError } from '../middleware'
 
 const isCommandIncluded = (event, cmd) => {
   return event?.message?.type === 'text' && event.message.text.trim().match(new RegExp(`^/${cmd}.*`, 'ig'))
@@ -27,16 +28,26 @@ const validateSignature = (traceId, body, clientSecret, lineSignature, logger, b
   return isValid
 }
 
-const getUserData = async (db, chatId, botName, channel) => {
+const getLINEData = async (db, chatId, botName, channel) => {
   const [notice] = await db.execute(
     sql`
       SELECT
         n.access_token, n.client_secret, u.api_key, u.admin, u.active, s.session_id,
-        n.proxy, coalesce(u.profile ->> 'displayName', u.chat_id) as display_name, u.language
+        n.proxy, coalesce(u.profile ->> 'displayName', u.chat_id) as display_name
       FROM line_notice n
       LEFT JOIN line_users u ON n.name = u.notice_name AND u.chat_id = ${chatId}
       LEFT JOIN line_sessions s ON n.name = s.notice_name AND u.chat_id = s.chat_id
-      WHERE n.name = ${botName} AND lower(provider) = ${channel.toLowerCase()}
+      WHERE lower(n.name) = ${botName.toLowerCase()} AND lower(provider) = ${channel.toLowerCase()}
+    `,
+  )
+
+  return notice
+}
+const getWebhook = async (db, botName, channel) => {
+  const [notice] = await db.execute(
+    sql`
+      SELECT n.access_token  FROM line_notice n
+      WHERE lower(n.name) = ${botName.toLowerCase()} AND lower(provider) = ${channel.toLowerCase()}
     `,
   )
 
@@ -163,7 +174,7 @@ export default async ({ body, db, headers, logger, params, queue, store }) => {
     const chatId = getChatId(body.events[0])
     const chatType = getType(body.events[0])
 
-    const userData = await getUserData(db, chatId, params.botName, params.channel)
+    const userData = await getLINEData(db, chatId, params.botName, params.channel)
     if (!userData) {
       return new Response(null, { status: 401 })
     }
@@ -214,7 +225,10 @@ export default async ({ body, db, headers, logger, params, queue, store }) => {
 
     logger.debug(`[${traceId}] [${params.botName}] Active: ${active ? active : isActive} (${messages.length})`)
     return new Response(null, { status: 201 })
-  } else {
-    return new Response(null, { status: 404 })
+  } else if (params.channel.toLowerCase() === 'discord') {
+    const webhook = await getWebhook(db, params.botName, params.channel)
+    if (!webhook) throw new BadRequestError(400, 'Webhook not found')
+
+    console.log(webhook)
   }
 }
