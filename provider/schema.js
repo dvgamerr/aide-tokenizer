@@ -110,3 +110,13 @@ export const gold = stashSchema.table(
   },
   (table) => [index('uq_update_at').on(table.updateAt)],
 )
+
+export const apiKeys = pgTable('api_keys', {
+  apiKey: varchar('api_key', { length: 255 }).notNull().unique(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  description: varchar('description', { length: 255 }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  id: integer('id').primaryKey().generatedByDefaultAsIdentity(),
+  isActive: boolean('is_active').default(true).notNull(),
+  userId: integer('user_id'),
+})
