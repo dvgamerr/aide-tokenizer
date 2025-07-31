@@ -33,41 +33,70 @@ route.get('/gold', getGold, {
     summary: 'Get gold price',
     tags: ['Collector'],
   },
+  query: t.Object({
+    currency: t.Optional(
+      t.Union([t.Literal('THB'), t.Literal('USD')], {
+        description: 'Currency for price display',
+        example: 'THB',
+      }),
+    ),
+  }),
 })
 
 route.post('/gold', postGold, {
   body: t.Object({
-    cost: t.Array(
+    deposit: t.Number({
+      description: 'Total investment deposit',
+      example: 100000,
+      minimum: 0,
+    }),
+    gold96: t.Array(
       t.Object({
-        oz: t.Number({
-          description: 'Number of ounces purchased',
-          example: 1,
+        cost: t.Number({
+          description: 'Total cost for 96% gold in local currency',
+          example: 0,
           minimum: 0,
         }),
-        usd: t.Number({
-          description: 'Cost per ounce in USD',
-          example: 3343.68,
+        kg: t.Number({
+          description: 'Number of kilograms purchased for 96% gold',
+          example: 0,
           minimum: 0,
         }),
       }),
       {
-        description: 'Array of gold investment entries',
-        example: [
-          { oz: 1, usd: 3343.68 },
-          { oz: 2.7, usd: 0 },
-        ],
-        minItems: 1,
+        description: 'Array of 96% gold investment entries',
+        example: [{ cost: 0, kg: 0 }],
+        minItems: 0,
+      },
+    ),
+    gold99: t.Array(
+      t.Object({
+        oz: t.Number({
+          description: 'Number of ounces purchased for 99% gold',
+          example: 1,
+          minimum: 0,
+        }),
+        usd: t.Number({
+          description: 'Cost per ounce in USD for 99% gold',
+          example: 1,
+          minimum: 0,
+        }),
+      }),
+      {
+        description: 'Array of 99% gold investment entries',
+        example: [{ oz: 1, usd: 1 }],
+        minItems: 0,
       },
     ),
     wallet: t.Number({
       description: 'Current wallet balance',
-      example: 11200.16,
+      example: 10,
       minimum: 0,
     }),
   }),
   detail: {
     description:
-      'Update gold investment cost data. Accepts wallet balance and an array of investment entries with USD cost and oz (ounce) values.',
+      'Update gold investment cost data. Accepts wallet balance, total cost, and arrays of investment entries for both 99% and 96% gold.',
     summary: 'Update gold',
     tags: ['Collector'],
   },
