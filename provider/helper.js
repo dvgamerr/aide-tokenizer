@@ -3,7 +3,7 @@ import pino from 'pino'
 import { name, version as packageVersion } from '../package.json'
 
 const createRequestHeaders = (headers) => ({
-  authorization: headers.authorization,
+  authorization: headers?.authorization,
   'content-type': 'application/json',
   'User-Agent': userAgent,
 })
@@ -39,9 +39,9 @@ export const getAuthAPIKey = (headers) => {
 }
 
 export const apiRequest = async (method, path, headers, payload) => {
-  const url = `http://127.0.0.1:${PORT}/${path.replace(/^\//, '')}`
+  const url = `http://localhost:${PORT}/${path.replace(/^\//, '')}`
 
-  return await fetch(url, {
+  return fetch(url, {
     body: payload ? JSON.stringify(payload) : undefined,
     headers: createRequestHeaders(headers),
     method,

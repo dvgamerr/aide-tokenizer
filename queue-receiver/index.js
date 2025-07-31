@@ -8,6 +8,7 @@ import queue from '../provider/queue'
 import handlerBotPushMessage from './handler/botname-push'
 import handlerBotWebhook from './handler/botname-webhook'
 import handlerCollector from './handler/collector'
+import handlerCrontab from './handler/crontab'
 import handlerHealth from './handler/health'
 import handlerStash from './handler/stash'
 import { responseProvider } from './handler/swagger'
@@ -103,6 +104,7 @@ app.post('/:channel/:botName', handlerBotWebhook, {
 app.use(handlerToken)
 app.use(handlerCollector)
 app.use(handlerStash)
+app.use(handlerCrontab)
 
 // // Define stash routes
 // const stash = new Elysia({ prefix: '/stash' })

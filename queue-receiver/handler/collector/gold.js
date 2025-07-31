@@ -8,31 +8,50 @@ import { gold, reminder } from '../../../provider/schema.js'
 
 dayjs.extend(relativeTime)
 
+const goldCalculator = (gold, market, key) =>
+  gold
+    .map((entry) => {
+      const ozCost = (entry.oz || 0) * (entry.usd || 0)
+      const ozSpot = (entry.oz || 0) * parseFloat(market.tout)
+      const kgCost = (entry.kg || 0) * (entry.usd || 0)
+      const kgSpot = (entry.kg || 0) * parseFloat(market.tout)
+
+      const cost = ozCost + kgCost
+      const spot = ozSpot + kgSpot
+
+      return { cost, profit: spot - cost, spot }
+    })
+    .reduce((total, e) => total + e[key], 0)
+
 // export default async ({ db, headers, pkg, request, userAgent }) => {
-export const getGold = async ({ db, logger, store }) => {
+export const getGold = async ({ db, logger, query, store }) => {
   const traceId = store?.traceId
+
+  const currency = query?.currency || 'USD'
 
   const [goldReminder] = await db.execute(sql`SELECT r.note FROM reminder r WHERE name = 'gold'`)
   let [market] = await db.execute(sql`SELECT * FROM stash.gold ORDER BY update_at DESC LIMIT 1`)
   if (!goldReminder) {
-    await db.insert(reminder).values({ name: 'gold', note: { cost: [{ oz: 1, usd: 0 }], wallet: 0 } })
+    await db.insert(reminder).values({ name: 'gold', note: { deposit: 1, gold99: [{ oz: 1, usd: 0 }], wallet: 0 } })
   }
   if (!market) {
-    market = { tin: 0, tinIco: 'none', tout: 0, toutIco: 'none', usdBuy: 33.5, usdSale: 34.5 }
+    market = { tin: '0', tin_ico: 'none', tout: '0', tout_ico: 'none', usd_buy: '33.5', usd_sale: '34.5' }
     await db.insert(gold).values(market)
   }
-  const { cost, wallet } = goldReminder.note
-
-  const calcGold = cost.map((entry) => {
-    const cost = entry.oz * entry.usd
-    const spot = entry.oz * market.tout
-
-    return { cost, profit: spot - cost, spot }
+  market = Object.assign(market, {
+    tin: parseFloat(market.tin),
+    tout: parseFloat(market.tout),
+    usd_buy: parseFloat(market.usd_buy),
+    usd_sale: parseFloat(market.usd_sale),
   })
+  const { deposit, gold96, gold99, wallet } = goldReminder.note
 
-  const costTotal = calcGold.reduce((total, e) => total + e.cost, 0)
-  const profitTotal = Math.round(calcGold.reduce((total, e) => total + e.profit, 0) * 100) / 100
-  const profitPercent = Math.round((profitTotal / costTotal) * 100 * 100) / 100
+  const costTotal = goldCalculator(gold99, market, 'spot') + goldCalculator(gold96, market, 'spot')
+  const depositTotal = deposit / market.usd_buy
+  const profitTotal = costTotal + wallet - depositTotal
+  const profitPercent = Math.round((profitTotal / depositTotal) * 100 * 100) / 100
+
+  console.log({ costTotal, depositTotal })
 
   const trands = market.tout_ico === 'up' ? 'เพิ่มขึ้น' : 'ลดลง'
 
@@ -46,12 +65,12 @@ export const getGold = async ({ db, logger, store }) => {
   return {
     exchange: { buy: parseFloat(market.usd_buy), sale: parseFloat(market.usd_sale) },
     profitPercent,
-    profitTotal,
+    profitTotal: Math.round(profitTotal * (currency === 'THB' ? market.usd_sale : 1) * 100) / 100,
     spot: {
       tout: parseFloat(market.tout),
       tout_ico: market.tout_ico,
     },
-    total: costTotal + wallet,
+    total: Math.round((costTotal + wallet) * (currency === 'THB' ? market.usd_buy : 1) * 100) / 100,
     update_at: dayjs(market.update_at).fromNow(),
   }
 }

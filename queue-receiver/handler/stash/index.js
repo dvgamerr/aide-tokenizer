@@ -12,6 +12,6 @@ const route = new Elysia({
 })
 
 // Gold Investment Processing and Notification Endpoint
-route.post('/gold', gold, {})
+route.patch('/gold', gold, {})
 
 export default route
