@@ -51,8 +51,6 @@ export const getGold = async ({ db, logger, query, store }) => {
   const profitTotal = costTotal + wallet - depositTotal
   const profitPercent = Math.round((profitTotal / depositTotal) * 100 * 100) / 100
 
-  console.log({ costTotal, depositTotal })
-
   const trands = market.tout_ico === 'up' ? 'เพิ่มขึ้น' : 'ลดลง'
 
   logger.info(

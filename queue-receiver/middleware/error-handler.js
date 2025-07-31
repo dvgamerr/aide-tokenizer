@@ -1,6 +1,6 @@
 // Error handling function
 export const errorHandler = ({ code, error, path, store }, logger) => {
-  if (code === 'NOT_FOUND') return new Response(code)
+  if (code === 'NOT_FOUND') return new Response(code, { status: 404 })
 
   // Get trace-id for error logging
   const traceId = store?.traceId

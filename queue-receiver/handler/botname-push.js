@@ -6,6 +6,10 @@ import { BadRequestError } from '../middleware'
 
 export default async ({ body, db, headers, logger, query, store }) => {
   const traceId = store?.traceId
+  if (!headers?.authorization) {
+    throw new BadRequestError(401, 'Missing API key')
+  }
+
   const { apiKey, botName } = getAuthAPIKey(headers)
   const text = query.text || body?.text
 

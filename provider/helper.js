@@ -33,19 +33,22 @@ export const parseDatabaseUrl = (url) => {
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export const getAuthAPIKey = (headers) => {
-  const [, token] = headers.authorization.split(' ')
+  const basic = headers?.authorization
+  const [, token] = basic.split(' ')
   const [botName, apiKey] = atob(token).split(':')
   return { apiKey, botName }
 }
 
 export const apiRequest = async (method, path, headers, payload) => {
   const url = `http://localhost:${PORT}/${path.replace(/^\//, '')}`
-
-  return fetch(url, {
-    body: payload ? JSON.stringify(payload) : undefined,
+  const options = {
     headers: createRequestHeaders(headers),
     method,
-  })
+  }
+  if (payload) options.body = JSON.stringify(payload)
+
+  const res = await fetch(url)
+  console.log(res)
 }
 
 export const pushMessage = async (headers, payload) => {

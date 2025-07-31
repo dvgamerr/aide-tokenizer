@@ -21,10 +21,10 @@ const colorMode = {
   },
 }
 
-export default (costTotal, profitTotal, profitPercent, exchange_sale, mode = 'dark') => {
-  const savingsTotal = costTotal + profitTotal
-  const savingsTotalTH = savingsTotal * exchange_sale
-  const profitTotalTH = profitTotal * exchange_sale
+export default ({ exchange, profitPercent, profitTotal, total }, mode = 'dark') => {
+  const savingsTotal = total
+  const savingsTotalTH = savingsTotal * exchange.buy
+  const profitTotalTH = profitTotal * exchange.buy
 
   const color = colorMode[mode]
 
