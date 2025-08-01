@@ -15,13 +15,13 @@ CREATE TABLE "line_sessions" (
 );
 --> statement-breakpoint
 CREATE TABLE "line_users" (
+	"notice_name" varchar(20) NOT NULL,
+	"chat_id" varchar(36) NOT NULL,
+	"api_key" uuid DEFAULT gen_random_uuid() NOT NULL,
 	"active" boolean DEFAULT false NOT NULL,
 	"admin" boolean DEFAULT false NOT NULL,
-	"api_key" uuid DEFAULT gen_random_uuid() NOT NULL,
-	"chat_id" varchar(36) NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"notice_name" varchar(20) NOT NULL,
 	"profile" jsonb DEFAULT '{}',
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "line_users_chat_id_notice_name_pk" PRIMARY KEY("chat_id","notice_name")
 );
 --> statement-breakpoint

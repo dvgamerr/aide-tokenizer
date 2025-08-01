@@ -40,15 +40,15 @@ export const lineSessions = pgTable(
 export const lineUsers = pgTable(
   'line_users',
   {
-    active: boolean('active').default(false).notNull(),
-    admin: boolean('admin').default(false).notNull(),
-    apiKey: uuid('api_key').defaultRandom().notNull(),
-    chatId: varchar('chat_id', { length: 36 }).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     noticeName: varchar('notice_name', { length: 20 })
       .notNull()
       .references(() => lineNotice.name),
+    chatId: varchar('chat_id', { length: 36 }).notNull(),
+    apiKey: uuid('api_key').defaultRandom().notNull(),
+    active: boolean('active').default(false).notNull(),
+    admin: boolean('admin').default(false).notNull(),
     profile: jsonb('profile').default('{}'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [primaryKey({ columns: [table.chatId, table.noticeName] }), index('line_users_api_key_unique').on(table.apiKey)],
 )
