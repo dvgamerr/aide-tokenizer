@@ -20,8 +20,8 @@ export default async (ctx) => {
       type: 'flex',
     }
 
-    const res = await pushMessage(Object.assign(ctx, { body: payload }))
-    return new Response(JSON.stringify(res), { status: 201 })
+    await pushMessage(Object.assign(ctx, { body: payload }))
+    return new Response(null, { status: 201 })
   } catch (ex) {
     console.error(ex)
     return new Response(null, { status: 500 })

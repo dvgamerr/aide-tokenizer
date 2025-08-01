@@ -12,10 +12,10 @@ export class QueueManager {
     this.connString = Bun.env.PG_QUEUE_URL
   }
 
-  async archive(msgId) {
+  async archive(traceId, msgId) {
     await this.init()
-    logger.info(`[queue:archived] Id: ${msgId}`)
-    return await this.client.msg.archive(this.queueName, msgId)
+    await this.db.execute(sql`SELECT pgmq.archive(${this.queueName}, ${msgId}::int);`)
+    logger.info(`[deleted:${traceId}] Id: ${msgId}`)
   }
 
   async delete(traceId, msgId) {
@@ -45,19 +45,21 @@ export class QueueManager {
   }
 
   async process(handler, options = {}) {
-    const { autoDelete = true, limit = 10 } = options
+    const { invisible = 10, limit = 10 } = options
 
     try {
-      const message = await this.read(limit)
-      if (!message) return {}
+      const payload = await this.read(limit, invisible)
+      if (!payload) return {}
 
-      const result = await handler(message)
+      const result = await handler(payload)
 
-      if (autoDelete) {
-        await this.delete(message.headers?.traceId, message.msg_id)
+      if (!payload.headers.archive) {
+        await this.delete(payload.headers?.traceId, payload.msg_id)
+      } else {
+        await this.archive(payload.headers?.traceId, payload.msg_id)
       }
 
-      return { message, result }
+      return { message: payload, result }
     } catch (ex) {
       logger.error(`Queue error: ${ex}`)
       process.exit(1)
@@ -74,7 +76,7 @@ export class QueueManager {
     return result
   }
 
-  async send(msg = {}, headers = {}) {
+  async send(msg = [], headers = {}) {
     await this.init()
     const [result] = await this.db.execute(
       sql`SELECT pgmq.send(queue_name => ${this.queueName}, msg => ${JSON.stringify(msg)}::jsonb, headers => ${JSON.stringify(headers)}::jsonb)`,
