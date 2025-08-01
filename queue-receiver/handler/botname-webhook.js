@@ -79,14 +79,10 @@ const ensureSessionExists = async (db, chatId, botName, sessionId) => {
 }
 
 const handleAdminCommands = async (event, queue, options) => {
-  const { isAdmin, optionQueue } = options
-
-  if (!isAdmin) return false
+  if (!options.isAdmin) return false
 
   if (isCommandIncluded(event, 'raw')) {
-    const tempOption = { ...optionQueue }
-    delete tempOption.sessionId
-    await queue.send(tempOption, [{ sender: { name: 'admin' }, text: JSON.stringify(event, null, 2), type: 'text' }])
+    await queue.send([{ sender: { name: 'admin' }, text: JSON.stringify(event, null, 2), type: 'text' }], options)
     return true
   }
 
@@ -94,24 +90,15 @@ const handleAdminCommands = async (event, queue, options) => {
 }
 
 const handleIdCommand = async (event, queue, options) => {
-  const { chatId, optionQueue } = options
-
   if (isCommandIncluded(event, 'id')) {
-    const tempOption = { ...optionQueue }
-    delete tempOption.sessionId
-    await queue.send(tempOption, [{ chatId, name: 'get-id', sender: { name: 'admin' }, type: 'template' }])
+    await queue.send([{ chatId: options.chatId, name: 'get-id', sender: { name: 'admin' }, type: 'template' }], options)
     return true
   }
   return false
 }
 
 const handleImCommand = async (event, db, queue, options) => {
-  const { optionQueue } = options
-
   if (isCommandIncluded(event, 'im')) {
-    const tempOption = { ...optionQueue }
-    delete tempOption.sessionId
-
     const { accessToken, chatId, chatType, params } = options
     const profile = chatType === 'USER' ? await userProfile(accessToken, chatId) : { displayName: 'Group' }
     const active = true
@@ -120,7 +107,7 @@ const handleImCommand = async (event, db, queue, options) => {
       .set({ active, profile })
       .where(and(eq(lineUsers.chatId, chatId), eq(lineUsers.noticeName, params.botName)))
 
-    await queue.send(tempOption, [{ sender: { name: 'admin' }, text: `Hi, ${profile.displayName}`, type: 'text' }])
+    await queue.send([{ sender: { name: 'admin' }, text: `Hi, ${profile.displayName}`, type: 'text' }], options)
 
     return true
   }
@@ -213,14 +200,16 @@ export default async ({ body, db, headers, logger, params, queue, store }) => {
       chatId,
       chatType,
       isAdmin,
-      optionQueue: { ...cacheToken, botName: params.botName, chatId, chatType, sessionId },
+      ...cacheToken,
+      botName: params.botName,
       params,
+      sessionId,
       traceId,
     })
 
     // ส่งข้อความถ้า user active และมีข้อความ
     if (isActive && messages.length) {
-      await queue.send({ ...cacheToken, botName: params.botName, chatId, chatType, sessionId, timestamp }, messages)
+      await queue.send(messages, { ...cacheToken, botName: params.botName, chatId, chatType, sessionId, timestamp })
     }
 
     logger.debug(`[${traceId}] [${params.botName}] Active: ${active ? active : isActive} (${messages.length})`)
@@ -231,7 +220,7 @@ export default async ({ body, db, headers, logger, params, queue, store }) => {
 
     try {
       if (body.text) {
-        await queue.send({ webhook: webhook.access_token, ...params }, body)
+        await queue.send(body, { webhook: webhook.access_token, ...params })
       }
       logger.info(`[${traceId}] [${params.botName}] Webhook sent successfully`)
       return new Response(null, { status: 200 })
