@@ -10,7 +10,7 @@ const gracefulShutdown = async (signal, app, db, logger) => {
   logger.info(`Received ${signal}...`)
 
   try {
-    app.server?.stop()
+    app?.server?.stop()
 
     await db.disconnect()
 

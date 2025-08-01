@@ -42,17 +42,14 @@ export default async ({ body, db, headers, logger, query, store }) => {
 
   const { access_token: accessToken, chat_id: chatId, display_name: displayName, proxy: proxyConfig } = user
   const messages = body?.messages ? body.messages : [text ? { text, type: 'text' } : body]
-  await queue.send(
-    {
-      accessToken,
-      botName,
-      chatId,
-      displayName,
-      proxyConfig,
-      sessionId: null,
-    },
-    messages,
-  )
+  await queue.send(messages, {
+    accessToken,
+    botName,
+    chatId,
+    displayName,
+    proxyConfig,
+    traceId,
+  })
 
   logger.info(`[${traceId}] [${botName}] Message queued for ${displayName} (${tokens} tokens)`)
 

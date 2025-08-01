@@ -12,70 +12,79 @@
 //     TH: 'ขอโทษค่ะ ไม่สามารถให้บริการในขณะนี้',
 //   },
 // }
+import { sleepSync } from 'bun'
+
 import { version } from '../package.json'
+import setupGracefulShutdown from '../provider/graceful'
 import { logger } from '../provider/helper'
 import queue from '../provider/queue'
 
 logger.info(`queue-receiver ${version} starting...`)
 await queue.init()
 
-// while (true) {
-//   const sender = await queueRead()
-//   if (!sender) {
-//     await sleep(400)
-//     continue
-//   }
+// Setup graceful shutdown handlers
+setupGracefulShutdown(null, queue, logger)
 
-//   const {
-//     msgId,
-//     readCount,
-//     message: { botName, chatId, messages, chatType, sessionId, proxyConfig, accessToken, apiKey, language },
-//   } = sender
-//   const { type: msgType, name: msgName } = messages[0]
+while (true) {
+  const { message } = await queue.process(async (payload) => {
+    console.log(payload)
+  })
 
-//   try {
-//     if (msgType === 'template') {
-//       if (!flexTemplate[msgName]) {
-//         await queueDelete(msgId)
-//         continue
-//       }
+  if (!message) {
+    sleepSync(100)
+    continue
+  }
 
-//       await pushMessage(accessToken, chatId, [{ type: 'flex', altText: `ID: ${chatId}`, contents: flexTemplate[msgName](chatId) }])
-//       await queueDelete(msgId)
-//       continue
-//     }
+  //   const {
+  //     msgId,
+  //     readCount,
+  //     message: { botName, chatId, messages, chatType, sessionId, proxyConfig, accessToken, apiKey, language },
+  //   } = sender
+  //   const { type: msgType, name: msgName } = messages[0]
 
-//     if (sessionId) {
-//       const question = messages.map((m) => m.text).join(' ')
-//       logger.info(`[${sessionId}] ${botName}:HM[${chatType}]`)
+  //   try {
+  //     if (msgType === 'template') {
+  //       if (!flexTemplate[msgName]) {
+  //         await queueDelete(msgId)
+  //         continue
+  //       }
 
-//       if (chatType === 'USER' && readCount === 1) {
-//         await preloadAnimation(accessToken, chatId, 30)
-//       }
-//       const res = await fetch(proxyConfig.url, {
-//         method: 'POST',
-//         headers: {
-//           'Content-Type': 'application/json',
-//           'User-Agent': `aide-${pkg.name}/${pkg.version}`,
-//           'x-secret-key': Bun.env.AIDE_API_KEY || 'n/a',
-//           'x-api-key': apiKey,
-//         },
-//         body: JSON.stringify({ chatId: sessionId, chatType, question }),
-//       })
-//       if (!res.ok) throw new Error(`${res.status} - \n${await res.text()}`)
-//       const body = await res.json()
-//       logger.info(`[${sessionId}] ${botName}:AI[${body.intention}]`)
-//       if (body.answer) await pushMessage(accessToken, chatId, body.answer)
-//     } else {
-//       await pushMessage(accessToken, chatId, messages)
-//     }
+  //       await pushMessage(accessToken, chatId, [{ type: 'flex', altText: `ID: ${chatId}`, contents: flexTemplate[msgName](chatId) }])
+  //       await queueDelete(msgId)
+  //       continue
+  //     }
 
-//     await (Bun.env.NODE_ENV === 'production' ? queueArchive : queueDelete)(msgId)
-//   } catch (ex) {
-//     if (readCount > 3) {
-//       await queueDelete(msgId)
-//       await pushMessage(accessToken, chatId, ANSWER.SERVER_DOWN[language || 'TH'])
-//     }
-//     logger.warn({ error: ex.toString(), msgId })
-//   }
-// }
+  //     if (sessionId) {
+  //       const question = messages.map((m) => m.text).join(' ')
+  //       logger.info(`[${sessionId}] ${botName}:HM[${chatType}]`)
+
+  //       if (chatType === 'USER' && readCount === 1) {
+  //         await preloadAnimation(accessToken, chatId, 30)
+  //       }
+  //       const res = await fetch(proxyConfig.url, {
+  //         method: 'POST',
+  //         headers: {
+  //           'Content-Type': 'application/json',
+  //           'User-Agent': `aide-${pkg.name}/${pkg.version}`,
+  //           'x-secret-key': Bun.env.AIDE_API_KEY || 'n/a',
+  //           'x-api-key': apiKey,
+  //         },
+  //         body: JSON.stringify({ chatId: sessionId, chatType, question }),
+  //       })
+  //       if (!res.ok) throw new Error(`${res.status} - \n${await res.text()}`)
+  //       const body = await res.json()
+  //       logger.info(`[${sessionId}] ${botName}:AI[${body.intention}]`)
+  //       if (body.answer) await pushMessage(accessToken, chatId, body.answer)
+  //     } else {
+  //       await pushMessage(accessToken, chatId, messages)
+  //     }
+
+  //     await (Bun.env.NODE_ENV === 'production' ? queueArchive : queueDelete)(msgId)
+  //   } catch (ex) {
+  //     if (readCount > 3) {
+  //       await queueDelete(msgId)
+  //       await pushMessage(accessToken, chatId, ANSWER.SERVER_DOWN[language || 'TH'])
+  //     }
+  //     logger.warn({ error: ex.toString(), msgId })
+  //   }
+}

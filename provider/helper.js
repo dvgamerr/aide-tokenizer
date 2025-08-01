@@ -30,8 +30,6 @@ export const parseDatabaseUrl = (url) => {
   }
 }
 
-export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-
 export const getAuthAPIKey = (headers) => {
   const basic = headers?.authorization
   const [, token] = basic.split(' ')

@@ -18,10 +18,11 @@ export class QueueManager {
     return await this.client.msg.archive(this.queueName, msgId)
   }
 
-  async delete(msgId) {
+  async delete(traceId, msgId) {
     await this.init()
-    logger.info(`[queue:deleted ] Id: ${msgId}`)
-    return await this.client.msg.delete(this.queueName, msgId)
+    await this.db.execute(sql`SELECT pgmq.delete(${this.queueName}, ${msgId}::int);`)
+    logger.info(`[deleted:${traceId}] Id: ${msgId}`)
+    return
   }
 
   async init() {
@@ -48,12 +49,12 @@ export class QueueManager {
 
     try {
       const message = await this.read(limit)
-      if (!message) return null
+      if (!message) return {}
 
       const result = await handler(message)
 
       if (autoDelete) {
-        await this.delete(message.msgId)
+        await this.delete(message.headers?.traceId, message.msg_id)
       }
 
       return { message, result }
@@ -63,16 +64,22 @@ export class QueueManager {
     }
   }
 
-  async read(limit = 10) {
+  async read(limit = 1, invisible = 1) {
     await this.init()
-    const message = await this.client.msg.read(this.queueName, limit)
-    if (message) logger.info(`[queue:messaged] Id: ${message.msgId}`)
-    return message
+
+    const [result] = await this.db.execute(
+      sql`SELECT * FROM pgmq.read(queue_name => ${this.queueName}, vt => ${invisible}::int, qty => ${limit}::int)`,
+    )
+    if (result) logger.info(`[  queue:${result.headers?.traceId}] Id: ${result.msg_id}`)
+    return result
   }
 
-  async send(data, messages = []) {
+  async send(msg = {}, headers = {}) {
     await this.init()
-    const [result] = await this.db.execute(sql`SELECT pgmq.send(${this.queueName}, ${JSON.stringify({ ...data, messages })})`)
+    const [result] = await this.db.execute(
+      sql`SELECT pgmq.send(queue_name => ${this.queueName}, msg => ${JSON.stringify(msg)}::jsonb, headers => ${JSON.stringify(headers)}::jsonb)`,
+    )
+    logger.info(`[ sended:${headers?.traceId}] Id: ${result.send}`)
     return result.send
   }
 }
