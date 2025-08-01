@@ -3,12 +3,11 @@ import { logger } from '../helper'
 
 export default async (accessToken, chatId, messages) => {
   const payload = {
-    messages:
-      typeof messages === 'string' ? [{ text: messages, type: 'text' }] : messages.map((e) => (!e.type ? { ...e, type: 'text' } : e)),
+    messages: prepareMessages(messages),
     to: chatId,
   }
 
-  const res = await fetch(`${LINE_API}/message/push`, {
+  const response = await fetch(`${LINE_API}/message/push`, {
     body: JSON.stringify(payload),
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -17,11 +16,32 @@ export default async (accessToken, chatId, messages) => {
     method: 'POST',
   })
 
-  const data = await res.json()
-  if (!res.ok) {
-    logger.debug({ data, payload: payload, res })
-    throw new Error(`Failed ${res.statusText} (${res.status})`)
+  const responseData = await response.json()
+
+  if (!response.ok) {
+    logger.debug({
+      payload,
+      response: {
+        status: response.status,
+        statusText: response.statusText,
+      },
+      responseData,
+    })
+    throw new Error(`ไม่สามารถส่งข้อความได้: ${response.statusText} (${response.status})`)
   }
 
-  return data
+  return responseData
+}
+
+function prepareMessages(messages) {
+  if (typeof messages === 'string') {
+    return [{ text: messages, type: 'text' }]
+  }
+
+  return messages.map((message) => {
+    if (!message.type) {
+      return { ...message, type: 'text' }
+    }
+    return message
+  })
 }
