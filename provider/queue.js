@@ -26,15 +26,20 @@ export class QueueManager {
 
   async init() {
     if (!this.client) {
-      this.client = postgres(this.connString)
-      this.db = drizzle({ client: this.client })
+      try {
+        this.client = postgres(this.connString)
+        this.db = drizzle({ client: this.client })
 
-      const list = await this.db.execute(sql`SELECT * FROM pgmq.list_queues() WHERE queue_name = ${this.queueName}`)
-      if (!list.length) {
-        logger.info(` - queue '${this.queueName}' is created`)
-        await this.db.execute(sql`SELECT * FROM pgmq.create(${this.queueName})`)
+        const list = await this.db.execute(sql`SELECT * FROM pgmq.list_queues() WHERE queue_name = ${this.queueName}`)
+        if (!list.length) {
+          logger.info(` - queue '${this.queueName}' is created`)
+          await this.db.execute(sql`SELECT * FROM pgmq.create(${this.queueName})`)
+        }
+        logger.info(` - queue '${parseDatabaseUrl(this.connString).database}' connected.`)
+      } catch (ex) {
+        logger.error(`Queue: ${ex}`)
+        process.exit(1)
       }
-      logger.info(` - queue '${parseDatabaseUrl(this.connString).database}' connected.`)
     }
   }
 
