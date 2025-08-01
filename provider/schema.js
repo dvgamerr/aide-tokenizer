@@ -1,5 +1,6 @@
 import {
   boolean,
+  date,
   index,
   integer,
   jsonb,
@@ -19,6 +20,16 @@ export const mangaTypeEnum = pgEnum('manga_type', ['manga', 'manhwa', 'doujin'])
 export const mangaLangEnum = pgEnum('manga_lang', ['TH', 'EN', 'CH', 'JP', 'KR'])
 
 export const stashSchema = pgSchema('stash')
+
+export const apiKeys = pgTable('api_keys', {
+  apiKey: varchar('api_key', { length: 255 }).notNull().unique(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  description: varchar('description', { length: 255 }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  id: integer('id').primaryKey().generatedByDefaultAsIdentity(),
+  isActive: boolean('is_active').default(true).notNull(),
+  userId: integer('user_id'),
+})
 
 export const reminder = pgTable('reminder', {
   name: varchar('name', { length: 20 }).primaryKey(),
@@ -111,12 +122,11 @@ export const gold = stashSchema.table(
   (table) => [index('uq_update_at').on(table.updateAt)],
 )
 
-export const apiKeys = pgTable('api_keys', {
-  apiKey: varchar('api_key', { length: 255 }).notNull().unique(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  description: varchar('description', { length: 255 }),
-  expiresAt: timestamp('expires_at', { withTimezone: true }),
-  id: integer('id').primaryKey().generatedByDefaultAsIdentity(),
-  isActive: boolean('is_active').default(true).notNull(),
-  userId: integer('user_id'),
+export const lotteryResults = stashSchema.table('lottery', {
+  backThree: varchar('back_three', { length: 3 }).array(),
+  backTwo: varchar('back_two', { length: 2 }).array(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  draw: date('draw').primaryKey(),
+  firstPrize: varchar('first_prize', { length: 6 }).notNull(),
+  frontThree: varchar('front_three', { length: 3 }).array(),
 })

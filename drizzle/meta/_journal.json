@@ -15,6 +15,13 @@
       "when": 1753805391529,
       "tag": "0001_api_key",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1754042933712,
+      "tag": "0002_lottery",
+      "breakpoints": true
     }
   ]
 }
