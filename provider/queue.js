@@ -52,9 +52,9 @@ export class QueueManager {
       }
 
       return { message, result }
-    } catch (error) {
-      logger.error('Queue processing error:', error.message)
-      throw error
+    } catch (ex) {
+      logger.error(`Queue error: ${ex}`)
+      process.exit(1)
     }
   }
 

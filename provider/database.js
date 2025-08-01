@@ -26,10 +26,10 @@ class DatabaseManager {
       logger.info(` - database '${parseDatabaseUrl(this.connString).database}' connected`)
 
       return this.db
-    } catch (err) {
-      logger.error('Database connection failed:', err.message)
+    } catch (ex) {
+      logger.error(`Database connection failed: ${ex}`)
       this.isConnected = false
-      throw err
+      process.exit(1)
     }
   }
 
