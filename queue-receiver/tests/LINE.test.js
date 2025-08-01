@@ -1,6 +1,7 @@
-import handlerHealth from '../handler/health'
 import { describe, expect, it } from 'bun:test'
 import { Elysia } from 'elysia'
+
+import handlerHealth from '../handler/health'
 
 describe('Elysia', () => {
   it('GET /_healthz', async () => {

@@ -1,108 +1,132 @@
-// Import necessary modules and handlers
-import { Elysia, t } from 'elysia'
-import { logger, userAgent, version, PORT } from '../provider/helper'
-import handlerHealth from './handler/health'
+import { swagger } from '@elysiajs/swagger'
+import { Elysia } from 'elysia'
+
+import db from '../provider/database'
+import setupGracefulShutdown from '../provider/graceful'
+import { logger, PORT, userAgent, version } from '../provider/helper'
+import queue from '../provider/queue'
 import handlerBotPushMessage from './handler/botname-push'
 import handlerBotWebhook from './handler/botname-webhook'
-import handlerFlowisePopcorn from './handler/flowise/popcorn'
-import handlerCollectorGold from './handler/collector/gold-oz'
-import handlerCollectorCinema from './handler/collector/cinema'
-import handlerStashCinema from './handler/stash/cinema'
-import handlerStashGold from './handler/stash/gold'
-import handlerCrontabGold from './handler/crontab/gold'
-import handlerCrontabCinema from './handler/crontab/cinema'
-import { pgClient } from '../provider/db'
+import handlerCollector from './handler/collector'
+import handlerCrontab from './handler/crontab'
+import handlerHealth from './handler/health'
+import handlerStash from './handler/stash'
+import { responseProvider } from './handler/swagger'
+import handlerToken from './handler/token'
+// import handlerStashCinema from './handler/stash/cinema'
+// import handlerStashGold from './handler/stash/gold'
+// import handlerCrontabGold from './handler/crontab/gold'
+// import handlerCrontabCinema from './handler/crontab/cinema'
+import { createValidateAuthLine, errorHandler, responseLogger, swaggerConfig, traceIdMiddleware } from './middleware'
 
-// Initialize database connection
-const database = await pgClient()
-
-// Log application start
 logger.info(`queue-receiver ${version} starting...`)
 
-// Fetch and process allowed users
-const users = await database.query(`SELECT notice_name, api_key FROM line_users WHERE active = 't'`)
-const allowedUsers = users.rows.reduce((accumulator, user) => {
-  const userKey = `${user.notice_name}:${user.api_key}`
-  accumulator[userKey] = true
-  return accumulator
-}, {})
-logger.info(`${Object.keys(allowedUsers).length} user(s) allowed.`)
+// Initialize database connection
+const stmt = await db.connect()
+await queue.init()
 
-// Log allowed users in local environment
-if (Bun.env.NODE_ENV === 'local') {
-  for (const userKey in allowedUsers) {
-    console.log(`- ${userKey} ${btoa(userKey)}`)
-  }
-}
-
-// Middleware for validating authorization
-const validateAuthLine = {
-  async beforeHandle({ headers, set }) {
-    try {
-      const [authType, authToken] = (headers?.authorization || '').split(' ')
-      if (!headers?.authorization || !authType || !authToken || !allowedUsers[atob(authToken)]) {
-        set.status = 401
-        set.headers['WWW-Authenticate'] = `${authType || 'Basic'} realm='sign', error="invalid_token"`
-        return 'Unauthorized'
-      }
-    } catch {
-      set.status = 400
-      set.headers['WWW-Authenticate'] = `Basic realm='sign', error="invalid_token"`
-      return 'Unauthorized'
-    }
-  },
-}
+// Create middleware with database connection
+const validateAuthLine = createValidateAuthLine(stmt)
 
 // Initialize Elysia app with decorations
-const app = new Elysia().decorate({
-  db: database,
-  logger: logger,
-  userAgent,
+const app = new Elysia()
+  .use(swagger(swaggerConfig))
+  .state('traceId', '')
+  .onBeforeHandle(traceIdMiddleware.beforeHandle)
+  .decorate({ db: stmt, logger: logger, queue: queue, userAgent })
+  .onError((context) => errorHandler(context, logger))
+  .onAfterResponse((context) => responseLogger(context, logger))
+
+// Define routes with Swagger documentation
+app.get('/health', handlerHealth, {
+  detail: {
+    description: 'Returns a simple health check response to verify that the queue-receiver service is running and operational',
+    responses: {
+      200: {
+        content: {
+          'text/plain': {
+            schema: {
+              example: '☕',
+              type: 'string',
+            },
+          },
+        },
+        description: 'Service is healthy',
+      },
+    },
+    summary: 'Health check',
+    tags: ['Health'],
+  },
 })
 
-// Error handling
-app.onError(({ code, error }) => {
-  if (code === 'NOT_FOUND') return new Response(code)
-  return { status: code, error: error.toString().replace('Error: ', '') }
-})
-
-// Response logging
-app.onAfterResponse(({ code, path, response, request, error }) => {
-  if (['/_healthz'].includes(path)) return
-  const ex = error
-  const logError = ex.code || code > 299
-  const logLevel = logError ? 'warn' : 'trace'
-  const errorMessage = logError ? ` |${ex.code || ex.message.toString().replace('Error: ', '')}| ` : ' '
-  logger[logLevel](`[${code || response?.status || request.method}] ${path}${errorMessage}${Math.round(performance.now() / 1000)}ms`)
-})
-
-// Define routes
-app.get('/_healthz', handlerHealth)
-app.put('/', handlerBotPushMessage, validateAuthLine)
-app.post('/:channel/:botName', handlerBotWebhook)
-app.get('/collector/gold', handlerCollectorGold)
-app.get('/collector/cinema', ...handlerCollectorCinema)
-
-// Define stash routes
-const stash = new Elysia({ prefix: '/stash' })
-stash.post('/cinema', handlerStashCinema)
-stash.post('/gold', handlerStashGold)
-app.use(stash)
-
-// Define crontab routes
-const crontab = new Elysia({ prefix: '/crontab' })
-crontab.put('/cinema/:flexType', handlerCrontabCinema, {
+app.put('/', handlerBotPushMessage, {
   beforeHandle: validateAuthLine.beforeHandle,
-  params: t.Object({
-    flexType: t.Enum({ weekly: 'weekly', day: 'day' }),
-  }),
+  detail: {
+    description:
+      'Send a push message through the bot to LINE users. Supports both direct messaging to specific users and broadcasting to all users in the channel.',
+    responses: responseProvider,
+    security: [{ basicAuth: [] }],
+    summary: 'Send push message to Provider',
+    tags: ['Notify'],
+  },
 })
-crontab.put('/gold', handlerCrontabGold, validateAuthLine)
-crontab.get('/gold', handlerCrontabGold, validateAuthLine)
-app.use(crontab)
 
-app.post('/flowise/LINE-popcorn', ...handlerFlowisePopcorn)
+app.post('/:channel/:botName', handlerBotWebhook, {
+  detail: {
+    description:
+      'Receives webhook events from Provider. This endpoint handles various types of events including messages, follows, joins, and other user interactions.',
+    parameters: [
+      {
+        description: 'Channel identifier for the Provider',
+        in: 'path',
+        name: 'channel',
+        required: true,
+        schema: {
+          type: 'string',
+        },
+      },
+      {
+        description: 'Bot name identifier for routing webhook events',
+        in: 'path',
+        name: 'botName',
+        required: true,
+        schema: {
+          type: 'string',
+        },
+      },
+    ],
+    responses: responseProvider,
+    summary: 'Provider webhook receiver',
+    tags: ['Notify'],
+  },
+})
+
+app.use(handlerToken)
+app.use(handlerCollector)
+app.use(handlerStash)
+app.use(handlerCrontab)
+
+// // Define stash routes
+// const stash = new Elysia({ prefix: '/stash' })
+// stash.post('/cinema', handlerStashCinema)
+// stash.post('/gold', handlerStashGold)
+// app.use(stash)
+
+// // Define crontab routes
+// const crontab = new Elysia({ prefix: '/crontab' })
+// crontab.put('/cinema/:flexType', handlerCrontabCinema, {
+//   beforeHandle: validateAuthLine.beforeHandle,
+//   params: t.Object({
+//     flexType: t.Enum({ weekly: 'weekly', day: 'day' }),
+//   }),
+// })
+// crontab.put('/gold', handlerCrontabGold, validateAuthLine)
+// crontab.get('/gold', handlerCrontabGold, validateAuthLine)
+// app.use(crontab)
+
+// Setup graceful shutdown handlers
+setupGracefulShutdown(app, stmt, logger)
 
 // Start the server
-app.listen({ port: PORT, hostname: '0.0.0.0' })
+app.listen({ hostname: '0.0.0.0', port: PORT })
 logger.info(`running on ${app.server?.hostname}:${app.server?.port}`)

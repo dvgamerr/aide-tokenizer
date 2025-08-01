@@ -2,11 +2,11 @@ name: build-containers
 
 on:
   push:
-    branches: ["main"]
+    branches: ['main']
     tags:
-      - "v*"
+      - 'v*'
   pull_request:
-    branches: ["main"]
+    branches: ['main']
 
 jobs:
   sender:

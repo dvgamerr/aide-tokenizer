@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'bun:test'
+import { describe, expect, it } from 'bun:test'
+
 import flexId from '../../../provider/line/flex-id'
 
 describe('flexId', () => {
@@ -8,47 +9,47 @@ describe('flexId', () => {
     const result = flexId(Id)
 
     expect(result).toEqual({
-      type: 'bubble',
-      size: 'mega',
       body: {
-        type: 'box',
-        layout: 'horizontal',
-        contents: [
-          {
-            type: 'text',
-            text: 'ID : ',
-            weight: 'bold',
-            color: '#1DB446',
-            size: 'xs',
-            flex: 1,
-          },
-          {
-            type: 'text',
-            text: Id,
-            size: 'xs',
-            color: '#aaaaaa',
-            wrap: true,
-            weight: 'bold',
-            flex: 10,
-          },
-        ],
-        paddingTop: 'sm',
-        paddingBottom: 'sm',
-        justifyContent: 'center',
-        paddingStart: 'lg',
-        paddingEnd: 'none',
         action: {
-          type: 'postback',
-          label: 'action',
           data: '[ID]',
           displayText: Id,
+          label: 'action',
+          type: 'postback',
         },
+        contents: [
+          {
+            color: '#1DB446',
+            flex: 1,
+            size: 'xs',
+            text: 'ID : ',
+            type: 'text',
+            weight: 'bold',
+          },
+          {
+            color: '#aaaaaa',
+            flex: 10,
+            size: 'xs',
+            text: Id,
+            type: 'text',
+            weight: 'bold',
+            wrap: true,
+          },
+        ],
+        justifyContent: 'center',
+        layout: 'horizontal',
+        paddingBottom: 'sm',
+        paddingEnd: 'none',
+        paddingStart: 'lg',
+        paddingTop: 'sm',
+        type: 'box',
       },
+      size: 'mega',
       styles: {
         footer: {
           separator: true,
         },
       },
+      type: 'bubble',
     })
   })
 })

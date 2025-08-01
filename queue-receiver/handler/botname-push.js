@@ -1,52 +1,57 @@
-import { queueSend } from '../../provider/db'
+import { sql } from 'drizzle-orm'
+
 import { getAuthAPIKey } from '../../provider/helper'
+import queue from '../../provider/queue'
+import { BadRequestError } from '../middleware'
 
-export default async ({ logger, db, headers, query, body }) => {
-  const { botName, apiKey } = getAuthAPIKey(headers)
-  const text = query.text || body.text
+export default async ({ body, db, headers, logger, query, store }) => {
+  const traceId = store?.traceId
+  if (!headers?.authorization) {
+    throw new BadRequestError(401, 'Missing API key')
+  }
 
-  try {
-    if (!apiKey) {
-      return new Response(null, { status: 401 })
-    }
+  const { apiKey, botName } = getAuthAPIKey(headers)
+  const text = query.text || body?.text
 
-    if (!text && !body.messages?.length && !body.contents) {
-      return new Response(null, { status: 400 })
-    }
-    const tokens = (JSON.stringify(body).length / 3.75).toFixed(0)
-    logger.info(`[${botName}] ${tokens} tokens.`)
+  if (!apiKey) {
+    throw new BadRequestError(401, 'Missing API key')
+  }
 
-    const noticeQuery = `
+  if (!body && !text) {
+    throw new BadRequestError(400, 'Missing message content')
+  }
+
+  const tokens = (JSON.stringify(body || text).length / 3.75).toFixed(0)
+  const [user] = await db.execute(sql`
       SELECT
-        n.access_token, u.chat_id, n.proxy,
+        n.access_token, 
+        u.chat_id, 
+        n.proxy,
         coalesce(u.profile ->> 'displayName', u.chat_id) as display_name
       FROM line_users u
       INNER JOIN line_notice n ON n.name = u.notice_name
-      WHERE u.active = 't'  AND u.notice_name = $1 AND u.api_key = $2 AND provider = 'LINE'
-    `
-    const notice = await db.query(noticeQuery, [botName, apiKey])
+      WHERE u.active = 't' 
+        AND u.notice_name = ${botName} 
+        AND u.api_key = ${apiKey} 
+        AND lower(provider) = 'line'
+    `)
 
-    if (!notice.rowCount) {
-      return new Response(null, { status: 401 })
-    }
-
-    const { chat_id: chatId, proxy: proxyConfig, access_token: accessToken, display_name: displayName } = notice.rows[0]
-    const messages = body.messages ? body.messages : [text ? { type: 'text', text } : body]
-    await queueSend(
-      {
-        sessionId: null,
-        botName,
-        chatId,
-        displayName,
-        accessToken,
-        proxyConfig,
-      },
-      messages,
-    )
-  } catch (ex) {
-    logger.error(`[${botName}] ${ex.toString()}`)
-    return new Response(null, { status: 500 })
+  if (!user) {
+    throw new BadRequestError(401, 'No active users found for API key')
   }
+
+  const { access_token: accessToken, chat_id: chatId, display_name: displayName, proxy: proxyConfig } = user
+  const messages = body?.messages ? body.messages : [text ? { text, type: 'text' } : body]
+  await queue.send(messages, {
+    accessToken,
+    botName,
+    chatId,
+    displayName,
+    proxyConfig,
+    traceId,
+  })
+
+  logger.info(`[${traceId}] [${botName}] Message queued for ${displayName} (${tokens} tokens)`)
 
   return new Response(null, { status: 201 })
 }
