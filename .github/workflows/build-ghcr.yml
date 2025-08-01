@@ -39,7 +39,7 @@ jobs:
           # # Strip "v" prefix from tag name
           # [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=v$(echo $VERSION | sed -e 's/^v//')
           # # Use Docker `latest` tag convention
-          # [ "$VERSION" == "main" ] && VERSION=latest
+          [ "$VERSION" == "main" ] && VERSION=latest
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
           echo "buildx_args=--platform $PLATFORMS \
@@ -52,7 +52,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log into registry ${{ env.REGISTRY }} 🔍
-        if: success() && !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request')
+        if: success() && !contains(github.event_name, 'pull_request')
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -60,17 +60,17 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Docker Push 📌
-        run: docker buildx build --output "type=image,push=${{ !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request') }}" ${{ steps.prepare.outputs.buildx_args }}
+        run: docker buildx build --output "type=image,push=${{ !contains(github.event_name, 'pull_request') }}" ${{ steps.prepare.outputs.buildx_args }}
 
       # - name: Sign the published Docker image
-      #   if: success() && !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request')
+      #   if: success() && !contains(github.event_name, 'pull_request')
       #   env:
       #     TAGS: ${{ steps.meta.outputs.tags }}
       #     DIGEST: ${{ steps.build-and-push.outputs.digest }}
       #   run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
 
       # - name: Trigger deploy 🚀
-      #   if: success() && !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request')
+      #   if: success() && !contains(github.event_name, 'pull_request')
       #   uses: actions-hub/kubectl@master
       #   env:
       #     KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
@@ -78,7 +78,7 @@ jobs:
       #     args: --insecure-skip-tls-verify=true rollout restart ${{ steps.prepare.outputs.kube_container }} -n ${{ steps.prepare.outputs.kube_namespace }}
 
       # - name: Status deployment 🔍
-      #   if: success() && !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request')
+      #   if: success() && !contains(github.event_name, 'pull_request')
       #   uses: actions-hub/kubectl@master
       #   env:
       #     KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
@@ -130,7 +130,7 @@ jobs:
           # # Strip "v" prefix from tag name
           # [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=v$(echo $VERSION | sed -e 's/^v//')
           # # Use Docker `latest` tag convention
-          # [ "$VERSION" == "main" ] && VERSION=latest
+          [ "$VERSION" == "main" ] && VERSION=latest
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
           echo "buildx_args=--platform $PLATFORMS \
@@ -143,7 +143,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log into registry ${{ env.REGISTRY }} 🔍
-        if: success() && !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request')
+        if: success() && !contains(github.event_name, 'pull_request')
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -151,17 +151,17 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Docker Push 📌
-        run: docker buildx build --output "type=image,push=${{ !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request') }}" ${{ steps.prepare.outputs.buildx_args }}
+        run: docker buildx build --output "type=image,push=${{ !contains(github.event_name, 'pull_request') }}" ${{ steps.prepare.outputs.buildx_args }}
 
       # - name: Sign the published Docker image
-      #   if: success() && !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request')
+      #   if: success() && !contains(github.event_name, 'pull_request')
       #   env:
       #     TAGS: ${{ steps.meta.outputs.tags }}
       #     DIGEST: ${{ steps.build-and-push.outputs.digest }}
       #   run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
 
       # - name: Trigger deploy 🚀
-      #   if: success() && !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request')
+      #   if: success() && !contains(github.event_name, 'pull_request')
       #   uses: actions-hub/kubectl@master
       #   env:
       #     KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
@@ -169,7 +169,7 @@ jobs:
       #     args: --insecure-skip-tls-verify=true rollout restart ${{ steps.prepare.outputs.kube_container }} -n ${{ steps.prepare.outputs.kube_namespace }}
 
       # - name: Status deployment 🔍
-      #   if: success() && !contains(github.ref, 'main') && !contains(github.event_name, 'pull_request')
+      #   if: success() && !contains(github.event_name, 'pull_request')
       #   uses: actions-hub/kubectl@master
       #   env:
       #     KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}

@@ -5,9 +5,10 @@ FROM oven/bun:alpine
 WORKDIR /app
 
 # Copy multiple files into the working directory
-COPY package.json bun.lockb ./
+COPY drizzle.config.js package.json bun.lockb ./
 
 # Copy entire directories into specific locations
+COPY ./drizzle/ ./drizzle/
 COPY ./provider/ ./provider/
 COPY ./queue-receiver/ ./queue-receiver/
 
