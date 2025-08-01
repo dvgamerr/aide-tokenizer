@@ -1,6 +1,6 @@
 {
-  "id": "b92c4fb8-9e4e-41ad-a96a-98a50602a4fc",
-  "prevId": "79621a48-a4a5-43ac-b188-cda3874e7f62",
+  "id": "81b57c05-2929-4a8e-850d-41b8fe2273ae",
+  "prevId": "c3a75cfa-f5d5-482f-9a7c-9b16e993ee14",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -68,6 +68,175 @@
           "columns": ["api_key"]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "stash.cinema_showing": {
+      "name": "cinema_showing",
+      "schema": "stash",
+      "columns": {
+        "s_bind": {
+          "name": "s_bind",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "s_display": {
+          "name": "s_display",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "s_name_en": {
+          "name": "s_name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "s_name_th": {
+          "name": "s_name_th",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "s_url": {
+          "name": "s_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "n_time": {
+          "name": "n_time",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "n_week": {
+          "name": "n_week",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "n_year": {
+          "name": "n_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "o_theater": {
+          "name": "o_theater",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'"
+        },
+        "s_cover": {
+          "name": "s_cover",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "s_genre": {
+          "name": "s_genre",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "t_release": {
+          "name": "t_release",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "uq_cinema_name": {
+          "name": "uq_cinema_name",
+          "nullsNotDistinct": false,
+          "columns": ["s_bind", "n_week", "n_year"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "stash.gold": {
+      "name": "gold",
+      "schema": "stash",
+      "columns": {
+        "tin": {
+          "name": "tin",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "tin_ico": {
+          "name": "tin_ico",
+          "type": "varchar(4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tout": {
+          "name": "tout",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "tout_ico": {
+          "name": "tout_ico",
+          "type": "varchar(4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "usd_buy": {
+          "name": "usd_buy",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "usd_sale": {
+          "name": "usd_sale",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "update_at": {
+          "name": "update_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "uq_update_at": {
+          "name": "uq_update_at",
+          "columns": [
+            {
+              "expression": "update_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -260,6 +429,56 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "stash.lottery": {
+      "name": "lottery",
+      "schema": "stash",
+      "columns": {
+        "draw": {
+          "name": "draw",
+          "type": "date",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "first_prize": {
+          "name": "first_prize",
+          "type": "varchar(6)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "front_three": {
+          "name": "front_three",
+          "type": "varchar(3)[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "back_three": {
+          "name": "back_three",
+          "type": "varchar(3)[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "back_two": {
+          "name": "back_two",
+          "type": "varchar(2)[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.reminder": {
       "name": "reminder",
       "schema": "",
@@ -288,7 +507,9 @@
     }
   },
   "enums": {},
-  "schemas": {},
+  "schemas": {
+    "stash": "stash"
+  },
   "sequences": {},
   "roles": {},
   "policies": {},

@@ -1,178 +1,9 @@
 {
-  "id": "ab581022-6722-45f2-8696-8775ddf8c769",
+  "id": "79621a48-a4a5-43ac-b188-cda3874e7f62",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "stash.cinema_showing": {
-      "name": "cinema_showing",
-      "schema": "stash",
-      "columns": {
-        "s_bind": {
-          "name": "s_bind",
-          "type": "varchar(200)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "s_name_en": {
-          "name": "s_name_en",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "s_name_th": {
-          "name": "s_name_th",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "s_display": {
-          "name": "s_display",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "t_release": {
-          "name": "t_release",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "s_genre": {
-          "name": "s_genre",
-          "type": "varchar(40)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "n_week": {
-          "name": "n_week",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "n_year": {
-          "name": "n_year",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "n_time": {
-          "name": "n_time",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "s_url": {
-          "name": "s_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "s_cover": {
-          "name": "s_cover",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "o_theater": {
-          "name": "o_theater",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "uq_cinema_name": {
-          "name": "uq_cinema_name",
-          "nullsNotDistinct": false,
-          "columns": ["s_bind", "n_week", "n_year"]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "stash.gold": {
-      "name": "gold",
-      "schema": "stash",
-      "columns": {
-        "tin": {
-          "name": "tin",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'0'"
-        },
-        "tout": {
-          "name": "tout",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'0'"
-        },
-        "tin_ico": {
-          "name": "tin_ico",
-          "type": "varchar(4)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tout_ico": {
-          "name": "tout_ico",
-          "type": "varchar(4)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "usd_sale": {
-          "name": "usd_sale",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'0'"
-        },
-        "usd_buy": {
-          "name": "usd_buy",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'0'"
-        },
-        "update_at": {
-          "name": "update_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "uq_update_at": {
-          "name": "uq_update_at",
-          "columns": [
-            {
-              "expression": "update_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.line_notice": {
       "name": "line_notice",
       "schema": "",
@@ -181,12 +12,6 @@
           "name": "name",
           "type": "varchar(20)",
           "primaryKey": true,
-          "notNull": true
-        },
-        "provider": {
-          "name": "provider",
-          "type": "varchar(10)",
-          "primaryKey": false,
           "notNull": true
         },
         "access_token": {
@@ -200,6 +25,12 @@
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": false
+        },
+        "provider": {
+          "name": "provider",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true
         },
         "proxy": {
           "name": "proxy",
@@ -220,15 +51,15 @@
       "name": "line_sessions",
       "schema": "",
       "columns": {
-        "chat_id": {
-          "name": "chat_id",
-          "type": "varchar(36)",
-          "primaryKey": false,
-          "notNull": true
-        },
         "notice_name": {
           "name": "notice_name",
           "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "chat_id": {
+          "name": "chat_id",
+          "type": "varchar(36)",
           "primaryKey": false,
           "notNull": true
         },
@@ -274,32 +105,6 @@
       "name": "line_users",
       "schema": "",
       "columns": {
-        "chat_id": {
-          "name": "chat_id",
-          "type": "varchar(36)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "notice_name": {
-          "name": "notice_name",
-          "type": "varchar(20)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "api_key": {
-          "name": "api_key",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
         "active": {
           "name": "active",
           "type": "boolean",
@@ -314,20 +119,38 @@
           "notNull": true,
           "default": false
         },
+        "api_key": {
+          "name": "api_key",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "chat_id": {
+          "name": "chat_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "notice_name": {
+          "name": "notice_name",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
         "profile": {
           "name": "profile",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false,
           "default": "'{}'"
-        },
-        "language": {
-          "name": "language",
-          "type": "t_lang",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'NA'"
         }
       },
       "indexes": {
@@ -368,134 +191,10 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
-    },
-    "stash.manga_collection": {
-      "name": "manga_collection",
-      "schema": "stash",
-      "columns": {
-        "s_name": {
-          "name": "s_name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "s_title": {
-          "name": "s_title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "s_url": {
-          "name": "s_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "s_thumbnail": {
-          "name": "s_thumbnail",
-          "type": "varchar(200)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "b_translate": {
-          "name": "b_translate",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "e_type": {
-          "name": "e_type",
-          "type": "manga_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'manga'"
-        },
-        "e_lang": {
-          "name": "e_lang",
-          "type": "manga_lang",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'TH'"
-        },
-        "n_total": {
-          "name": "n_total",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "o_image": {
-          "name": "o_image",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "uq_manga_url": {
-          "name": "uq_manga_url",
-          "nullsNotDistinct": false,
-          "columns": ["s_url"]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.reminder": {
-      "name": "reminder",
-      "schema": "",
-      "columns": {
-        "name": {
-          "name": "name",
-          "type": "varchar(20)",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "note": {
-          "name": "note",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
     }
   },
-  "enums": {
-    "public.manga_lang": {
-      "name": "manga_lang",
-      "schema": "public",
-      "values": ["TH", "EN", "CH", "JP", "KR"]
-    },
-    "public.manga_type": {
-      "name": "manga_type",
-      "schema": "public",
-      "values": ["manga", "manhwa", "doujin"]
-    },
-    "public.t_lang": {
-      "name": "t_lang",
-      "schema": "public",
-      "values": ["TH", "EN", "NA"]
-    }
-  },
-  "schemas": {
-    "stash": "stash"
-  },
+  "enums": {},
+  "schemas": {},
   "sequences": {},
   "roles": {},
   "policies": {},
