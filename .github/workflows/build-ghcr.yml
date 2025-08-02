@@ -184,4 +184,4 @@ jobs:
         uses: tsickert/discord-webhook@v5.3.0
         with:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
-          content: ':fai::led: `${{ env.KUBE_CONTAINER }}` failure rolled.\nCheck: https://github.com/dvgamerr/aide-tokenizer/actions/runs/${{ github.run_id }}'
+          content: "<:fai:1065521737896300604><:led:1065521734096257024> `${{ env.KUBE_CONTAINER }}` failure rolled.\n Check: <https://github.com/dvgamerr/aide-tokenizer/actions/runs/${{ github.run_id }}>"
