@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia'
 
+import cinema from './cinema'
 import gold from './gold'
 
 const route = new Elysia({
@@ -13,5 +14,6 @@ const route = new Elysia({
 
 // Gold Investment Processing and Notification Endpoint
 route.patch('/gold', gold, {})
+route.post('/cinema', cinema, {})
 
 export default route

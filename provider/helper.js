@@ -30,11 +30,17 @@ export const parseDatabaseUrl = (url) => {
   }
 }
 
+export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 export const getAuthAPIKey = (headers) => {
   const basic = headers?.authorization
-  const [, token] = basic.split(' ')
-  const [botName, apiKey] = atob(token).split(':')
-  return { apiKey, botName }
+  try {
+    const [, token] = basic.split(' ')
+    const [botName, apiKey] = atob(token).split(':')
+    return { apiKey, botName }
+  } catch {
+    return {}
+  }
 }
 
 export const apiRequest = async (method, path, headers, payload) => {

@@ -1,5 +1,8 @@
 import dayjs from 'dayjs'
 import weekOfYear from 'dayjs/plugin/weekOfYear'
+import { sql } from 'drizzle-orm'
+
+import { cinemaShowing } from '../../../provider/schema.js'
 
 dayjs.extend(weekOfYear)
 
@@ -7,43 +10,40 @@ const upsertCinemaMovie = async (db, body) => {
   if (!body.length) return
   for (let i = 0; i < body.length; i += 10) {
     const chunk = body.slice(i, i + 10)
-    const values = chunk.flatMap((cinema) => [
-      cinema.name_en,
-      cinema.name_th,
-      cinema.bind,
-      cinema.display,
-      cinema.release,
-      cinema.genre,
-      dayjs(cinema.release).week(),
-      dayjs(cinema.release).year(),
-      cinema.time,
-      cinema.theater.sf?.url || cinema.theater.major.url,
-      cinema.theater.sf?.cover || cinema.theater.major.cover,
-      cinema.theater,
-    ])
+    const values = chunk.map((cinema) => ({
+      nTime: cinema.time,
+      nWeek: dayjs(cinema.release).week(),
+      nYear: dayjs(cinema.release).year(),
+      oTheater: cinema.theater,
+      sBind: cinema.bind,
+      sCover: cinema.theater.sf?.cover || cinema.theater.major.cover,
+      sDisplay: cinema.display,
+      sGenre: cinema.genre,
+      sNameEn: cinema.name_en,
+      sNameTh: cinema.name_th,
+      sUrl: cinema.theater.sf?.url || cinema.theater.major.url,
+      tRelease: new Date(cinema.release),
+    }))
 
-    const setInsert = (_, i) =>
-      `($${i * 12 + 1}, $${i * 12 + 2}, $${i * 12 + 3}, $${i * 12 + 4}, $${i * 12 + 5}, $${i * 12 + 6}, $${i * 12 + 7}, $${i * 12 + 8}, $${i * 12 + 9}, $${i * 12 + 10}, $${i * 12 + 11}, $${i * 12 + 12})`
-    const quertInsert = `
-    INSERT INTO "stash"."cinema_showing"
-    (s_name_en, s_name_th, s_bind, s_display, t_release, s_genre, n_week, n_year, n_time, s_url, s_cover, o_theater)
-    VALUES
-    ${chunk.map(setInsert).join(', ')}
-    ON CONFLICT (s_bind, n_week, n_year)
-    DO UPDATE SET
-      s_name_en = EXCLUDED.s_name_en,
-      s_name_th = EXCLUDED.s_name_th,
-      s_display = EXCLUDED.s_display,
-      t_release = EXCLUDED.t_release,
-      s_genre = EXCLUDED.s_genre,
-      n_week = EXCLUDED.n_week,
-      n_year = EXCLUDED.n_year,
-      n_time = EXCLUDED.n_time,
-      s_url = EXCLUDED.s_url,
-      s_cover = EXCLUDED.s_cover,
-      o_theater = "stash"."cinema_showing".o_theater || EXCLUDED.o_theater
-    `
-    await db.query(quertInsert, values)
+    await db
+      .insert(cinemaShowing)
+      .values(values)
+      .onConflictDoUpdate({
+        set: {
+          nTime: sql`EXCLUDED.n_time`,
+          nWeek: sql`EXCLUDED.n_week`,
+          nYear: sql`EXCLUDED.n_year`,
+          oTheater: sql`"stash"."cinema_showing".o_theater || EXCLUDED.o_theater`,
+          sCover: sql`EXCLUDED.s_cover`,
+          sDisplay: sql`EXCLUDED.s_display`,
+          sGenre: sql`EXCLUDED.s_genre`,
+          sNameEn: sql`EXCLUDED.s_name_en`,
+          sNameTh: sql`EXCLUDED.s_name_th`,
+          sUrl: sql`EXCLUDED.s_url`,
+          tRelease: sql`EXCLUDED.t_release`,
+        },
+        target: [cinemaShowing.sBind, cinemaShowing.nWeek, cinemaShowing.nYear],
+      })
   }
 }
 
@@ -70,14 +70,14 @@ const handleDuplicates = (cinemaRows) => {
   //   if (deleteBindKey.includes(entry.bind)) deleteBindKey.splice(deleteBindKey.indexOf(entry.bind), 1)
   // }
 
-  return { uniqueKey, mergeKey }
+  return { mergeKey, uniqueKey }
 }
 
-export default async ({ db, body, logger }) => {
+export default async ({ body, db, logger }) => {
   try {
     await upsertCinemaMovie(db, body)
 
-    const duplica = await db.query(`
+    const duplica = await db.execute(sql`
       WITH duplicate AS (
         SELECT s_name_en name FROM "stash"."cinema_showing"
         GROUP BY s_name_en, n_week, n_year HAVING COUNT(*) > 1
@@ -92,15 +92,13 @@ export default async ({ db, body, logger }) => {
       LEFT JOIN "stash"."cinema_showing" c ON c.s_name_en = d.name OR c.s_name_th = d.name;  
     `)
 
-    const { uniqueKey, mergeKey } = handleDuplicates(duplica.rows)
+    const { mergeKey, uniqueKey } = handleDuplicates(duplica)
     logger.info(`Remove duplicate ${mergeKey.length} keys.`)
     if (mergeKey.length > 0) {
       for await (const cinema of mergeKey) {
-        await db.query(`DELETE FROM "stash"."cinema_showing" WHERE n_week = $1 AND n_year = $2 AND s_bind = $3`, [
-          cinema.week,
-          cinema.year,
-          cinema.bind,
-        ])
+        await db.execute(
+          sql`DELETE FROM "stash"."cinema_showing" WHERE n_week = ${cinema.week} AND n_year = ${cinema.year} AND s_bind = ${cinema.bind}`,
+        )
       }
     }
 
@@ -108,7 +106,7 @@ export default async ({ db, body, logger }) => {
 
     return new Response(null, { status: 201 })
   } catch (ex) {
-    logger.log(ex)
+    logger.error(ex)
     return new Response(JSON.stringify({ error: ex.toString() }), { status: 500 })
   }
 }

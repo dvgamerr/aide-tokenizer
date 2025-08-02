@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia'
 
+import cinema from './cinema'
 import gold from './gold'
 
 const route = new Elysia({
@@ -10,11 +11,18 @@ const route = new Elysia({
   prefix: '/crontab',
 })
 
+route.get('/cinema', cinema, {
+  detail: {
+    description: 'Fetches cinema showtimes and movie information for scheduled updates.',
+    summary: 'Send LINE Flex for cinema showing',
+    tags: ['Crontab'],
+  },
+})
+
 route.get('/gold', gold, {
   detail: {
-    description:
-      'Retrieves current gold prices from external APIs and calculates investment profit/loss based on stored portfolio data. Returns comprehensive gold market data including spot prices, exchange rates, cost basis, and profit calculations.',
-    summary: 'Fetch gold prices and calculate investment returns',
+    description: 'Fetches current gold prices and calculates investment profit/loss.',
+    summary: 'Send LINE Flex for gold prices',
     tags: ['Crontab'],
   },
 })
