@@ -16,12 +16,14 @@ jobs:
       packages: write
       id-token: write
 
+    outputs:
+      docker_image: ${{ steps.prepare.outputs.docker_image }}
+      version: ${{ steps.prepare.outputs.version }}
+
     env:
       REGISTRY: ghcr.io
       IMAGE_FILE: queue-sender/Dockerfile
       IMAGE_NAME: queue-sender
-      KUBE_CONTAINER: deploy/page-403
-      KUBE_NAMESPACE: default
       PLATFORMS: linux/amd64,linux/arm64
 
     steps:
@@ -31,8 +33,6 @@ jobs:
       - name: Prepare 🔰
         id: prepare
         run: |
-          echo "kube_container=${KUBE_CONTAINER}" >> $GITHUB_OUTPUT
-          echo "kube_namespace=${KUBE_NAMESPACE}" >> $GITHUB_OUTPUT
           echo "docker_image=${{env.REGISTRY}}/${{github.actor}}/$IMAGE_NAME" >> $GITHUB_OUTPUT
 
           VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
@@ -61,44 +61,6 @@ jobs:
 
       - name: Docker Push 📌
         run: docker buildx build --output "type=image,push=${{ !contains(github.event_name, 'pull_request') }}" ${{ steps.prepare.outputs.buildx_args }}
-
-      # - name: Sign the published Docker image
-      #   if: success() && !contains(github.event_name, 'pull_request')
-      #   env:
-      #     TAGS: ${{ steps.meta.outputs.tags }}
-      #     DIGEST: ${{ steps.build-and-push.outputs.digest }}
-      #   run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
-
-      # - name: Trigger deploy 🚀
-      #   if: success() && !contains(github.event_name, 'pull_request')
-      #   uses: actions-hub/kubectl@master
-      #   env:
-      #     KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
-      #   with:
-      #     args: --insecure-skip-tls-verify=true rollout restart ${{ steps.prepare.outputs.kube_container }} -n ${{ steps.prepare.outputs.kube_namespace }}
-
-      # - name: Status deployment 🔍
-      #   if: success() && !contains(github.event_name, 'pull_request')
-      #   uses: actions-hub/kubectl@master
-      #   env:
-      #     KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
-      #   with:
-      #     args: --insecure-skip-tls-verify=true rollout status --timeout=30s ${{ steps.prepare.outputs.kube_container }} -n ${{ steps.prepare.outputs.kube_namespace }}
-
-      # - name: Discord Alert
-      #   if: success() && !contains(github.event_name, 'pull_request')
-      #   uses: tsickert/discord-webhook@v5.3.0
-      #   with:
-      #     webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
-      #     content: "`${{ steps.prepare.outputs.kube_container }}` successfully rolled out image `${{ steps.prepare.outputs.docker_image }}:${{ steps.prepare.outputs.version }}`"
-
-      # - name: Discord Alert
-      #   continue-on-error: true
-      #   if: failure() && !contains(github.event_name, 'pull_request')
-      #   uses: tsickert/discord-webhook@v5.3.0
-      #   with:
-      #     webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
-      #     content: "❌ `${{ steps.prepare.outputs.kube_container }}` failure rolled."
 
   receiver:
     runs-on: ubuntu-24.04
@@ -107,12 +69,14 @@ jobs:
       packages: write
       id-token: write
 
+    outputs:
+      docker_image: ${{ steps.prepare.outputs.docker_image }}
+      version: ${{ steps.prepare.outputs.version }}
+
     env:
       REGISTRY: ghcr.io
       IMAGE_FILE: queue-receiver/Dockerfile
       IMAGE_NAME: queue-receiver
-      KUBE_CONTAINER: deploy/page-403
-      KUBE_NAMESPACE: default
       PLATFORMS: linux/amd64,linux/arm64
 
     steps:
@@ -122,9 +86,7 @@ jobs:
       - name: Prepare 🔰
         id: prepare
         run: |
-          echo "kube_container=${KUBE_CONTAINER}" >> $GITHUB_OUTPUT
-          echo "kube_namespace=${KUBE_NAMESPACE}" >> $GITHUB_OUTPUT
-          echo "docker_image=${{env.REGISTRY}}/${{github.actor}}/$IMAGE_NAME" >> $GITHUB_OUTPUT
+          echo "docker_image=${{env.REGISTRY}}/${{github.actor}}/${{ env.IMAGE_NAME }}" >> $GITHUB_OUTPUT
 
           VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
           # # Strip "v" prefix from tag name
@@ -159,34 +121,59 @@ jobs:
       #     TAGS: ${{ steps.meta.outputs.tags }}
       #     DIGEST: ${{ steps.build-and-push.outputs.digest }}
       #   run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+  rollout:
+    runs-on: ubuntu-24.04
+    needs: [sender, receiver]
+    if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    env:
+      KUBE_CONTAINER: deploy/tokenizer
+      KUBE_NAMESPACE: dvgamerr
 
-      # - name: Trigger deploy 🚀
-      #   if: success() && !contains(github.event_name, 'pull_request')
-      #   uses: actions-hub/kubectl@master
-      #   env:
-      #     KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
-      #   with:
-      #     args: --insecure-skip-tls-verify=true rollout restart ${{ steps.prepare.outputs.kube_container }} -n ${{ steps.prepare.outputs.kube_namespace }}
+    steps:
+      - name: Create GitHub Release 🎉
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## What's Changed
 
-      # - name: Status deployment 🔍
-      #   if: success() && !contains(github.event_name, 'pull_request')
-      #   uses: actions-hub/kubectl@master
-      #   env:
-      #     KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
-      #   with:
-      #     args: --insecure-skip-tls-verify=true rollout status --timeout=30s ${{ steps.prepare.outputs.kube_container }} -n ${{ steps.prepare.outputs.kube_namespace }}
+            🐳 **Docker Images:**
+            - `${{ needs.sender.outputs.docker_image }}:${{ needs.sender.outputs.version }}`
+            - `${{ needs.receiver.outputs.docker_image }}:${{ needs.receiver.outputs.version }}`
 
-      # - name: Discord Alert
-      #   if: success() && !contains(github.event_name, 'pull_request')
-      #   uses: tsickert/discord-webhook@v5.3.0
-      #   with:
-      #     webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
-      #     content: "`${{ steps.prepare.outputs.kube_container }}` successfully rolled out image `${{ steps.prepare.outputs.docker_image }}:${{ steps.prepare.outputs.version }}`"
+            Built from commit: ${{ github.sha }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Trigger deploy 🚀
+        uses: actions-hub/kubectl@master
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        with:
+          args: --insecure-skip-tls-verify=true rollout restart ${{ env.KUBE_CONTAINER }} -n ${{ env.KUBE_NAMESPACE }}
 
-      # - name: Discord Alert
-      #   continue-on-error: true
-      #   if: failure() && !contains(github.event_name, 'pull_request')
-      #   uses: tsickert/discord-webhook@v5.3.0
-      #   with:
-      #     webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
-      #     content: "❌ `${{ steps.prepare.outputs.kube_container }}` failure rolled."
+      - name: Status deployment 🔍
+        uses: actions-hub/kubectl@master
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        with:
+          args: --insecure-skip-tls-verify=true rollout status --timeout=300s ${{ env.KUBE_CONTAINER }} -n ${{ env.KUBE_NAMESPACE }}
+
+      - name: Discord Alert
+        if: success()
+        uses: tsickert/discord-webhook@v5.3.0
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
+          content: '`${{ env.KUBE_CONTAINER }}` successfully rolled out image `${{ needs.receiver.outputs.docker_image }}:${{ needs.receiver.outputs.version }}`'
+
+      - name: Discord Alert
+        continue-on-error: true
+        if: failure()
+        uses: tsickert/discord-webhook@v5.3.0
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
+          content: '❌ `${{ env.KUBE_CONTAINER }}` failure rolled.'
