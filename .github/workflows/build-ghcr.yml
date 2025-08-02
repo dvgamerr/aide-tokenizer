@@ -149,6 +149,14 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set new image 🖼️
+        uses: actions-hub/kubectl@master
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        with:
+          args: --insecure-skip-tls-verify=true set image ${{ env.KUBE_CONTAINER }} sender=${{ needs.sender.outputs.docker_image }}:${{ needs.sender.outputs.version }} receiver=${{ needs.receiver.outputs.docker_image }}:${{ needs.receiver.outputs.version }} -n ${{ env.KUBE_NAMESPACE }}
+
       - name: Trigger deploy 🚀
         uses: actions-hub/kubectl@master
         env:
@@ -161,7 +169,7 @@ jobs:
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         with:
-          args: --insecure-skip-tls-verify=true rollout status --timeout=300s ${{ env.KUBE_CONTAINER }} -n ${{ env.KUBE_NAMESPACE }}
+          args: --insecure-skip-tls-verify=true rollout status --timeout=30s ${{ env.KUBE_CONTAINER }} -n ${{ env.KUBE_NAMESPACE }}
 
       - name: Discord Alert
         if: success()
