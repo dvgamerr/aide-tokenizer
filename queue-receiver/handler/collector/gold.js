@@ -32,7 +32,7 @@ export const getGold = async ({ db, logger, query, store }) => {
   const [goldReminder] = await db.execute(sql`SELECT r.note FROM reminder r WHERE name = 'gold'`)
   let [market] = await db.execute(sql`SELECT * FROM stash.gold ORDER BY update_at DESC LIMIT 1`)
   if (!goldReminder) {
-    await db.insert(reminder).values({ name: 'gold', note: { deposit: 1, gold99: [{ oz: 1, usd: 0 }], wallet: 0 } })
+    await postGold({ deposit: 1, gold99: [{ oz: 1, usd: 0 }], wallet: 0 })
   }
   if (!market) {
     market = { tin: '0', tin_ico: 'none', tout: '0', tout_ico: 'none', usd_buy: '33.5', usd_sale: '34.5' }
@@ -74,13 +74,11 @@ export const getGold = async ({ db, logger, query, store }) => {
 }
 
 export const postGold = async ({ body, db }) => {
-  // Use INSERT ON CONFLICT for upsert operation
-  await db.execute(sql`
-    INSERT INTO reminder (name, note) 
-    VALUES ('gold', ${JSON.stringify(body)})
-    ON CONFLICT (name) 
-    DO UPDATE SET note = ${JSON.stringify(body)}
-  `)
+  // Use Drizzle ORM for upsert operation
+  await db
+    .insert(reminder)
+    .values({ name: 'gold', note: body })
+    .onConflictDoUpdate({ set: { note: body }, target: reminder.name })
 
   return { success: true }
 }
