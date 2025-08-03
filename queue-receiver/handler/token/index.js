@@ -48,28 +48,12 @@ route.post('/token', handlerCreateToken, {
   },
 })
 
-route.post('/revoke', handlerRevokeToken, {
+route.delete('/revoke', handlerRevokeToken, {
   beforeHandle: validateApiKey,
+
   detail: {
     description:
       'Revoke an existing API token by setting its status to inactive. Once revoked, the token cannot be used for authentication.',
-    requestBody: {
-      content: {
-        'application/json': {
-          schema: {
-            properties: {
-              apiKey: {
-                description: 'The API key to revoke',
-                type: 'string',
-              },
-            },
-            required: ['apiKey'],
-            type: 'object',
-          },
-        },
-      },
-      required: true,
-    },
     summary: 'Revoke token',
     tags: ['Token'],
   },
