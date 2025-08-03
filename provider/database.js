@@ -27,7 +27,7 @@ class DatabaseManager {
 
       return this.db
     } catch (ex) {
-      logger.error(`Database connection failed :: ${ex}`)
+      logger.error(`Database connection failed :: ${ex.toString().replace('Error: ', '').replace(/\n/gi, ' ')}`)
       this.isConnected = false
       process.exit(1)
     }
