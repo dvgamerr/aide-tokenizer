@@ -115,12 +115,6 @@ jobs:
       - name: Docker Push 📌
         run: docker buildx build --output "type=image,push=${{ !contains(github.event_name, 'pull_request') }}" ${{ steps.prepare.outputs.buildx_args }}
 
-      # - name: Sign the published Docker image
-      #   if: success() && !contains(github.event_name, 'pull_request')
-      #   env:
-      #     TAGS: ${{ steps.meta.outputs.tags }}
-      #     DIGEST: ${{ steps.build-and-push.outputs.digest }}
-      #   run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
   rollout:
     runs-on: ubuntu-24.04
     needs: [sender, receiver]
@@ -169,7 +163,7 @@ jobs:
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         with:
-          args: --insecure-skip-tls-verify=true rollout status --timeout=30s ${{ env.KUBE_CONTAINER }} -n ${{ env.KUBE_NAMESPACE }}
+          args: --insecure-skip-tls-verify=true rollout status --timeout=180s ${{ env.KUBE_CONTAINER }} -n ${{ env.KUBE_NAMESPACE }}
 
       - name: Discord Alert
         if: success()
@@ -178,10 +172,10 @@ jobs:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
           content: '`${{ env.KUBE_CONTAINER }}` successfully rolled out image `${{ needs.receiver.outputs.docker_image }}:${{ needs.receiver.outputs.version }}`'
 
-      - name: Discord Alert
+      - name: Fail Alert
         continue-on-error: true
         if: failure()
         uses: tsickert/discord-webhook@v5.3.0
         with:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
-          content: "<:fai:1065521737896300604><:led:1065521734096257024> `${{ env.KUBE_CONTAINER }}` failure rolled.\n Check: <https://github.com/dvgamerr/aide-tokenizer/actions/runs/${{ github.run_id }}>"
+          content: "<:fai:1065521737896300604><:led:1065521734096257024> `${{ env.KUBE_CONTAINER }}` failure rolled.\n Check: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
