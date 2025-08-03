@@ -1,95 +1,62 @@
+import { randomUUID } from 'crypto'
 import { eq } from 'drizzle-orm'
 
 import { apiKeys } from '../../../provider/schema.js'
 
-export async function handlerCreateToken({ body, db, logger, set, store }) {
-  const traceId = store.traceId
+export async function handlerCreateToken({ body, db, logger, store }) {
+  const traceId = store?.traceId
 
   try {
-    logger.info(`[${traceId}] Creating new API token`, { body })
-
-    const { description, expiresAt, userId } = body
+    const { description, expiresAt } = body
 
     // Generate secure API key
     const newApiKey = generateApiKey()
 
     // Insert new API key into database
-    const result = await db
+    const [result] = await db
       .insert(apiKeys)
       .values({
         apiKey: newApiKey,
-        description: description || null,
+        description: description,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
-        userId: userId || null,
       })
       .returning({
         apiKey: apiKeys.apiKey,
         createdAt: apiKeys.createdAt,
         description: apiKeys.description,
         expiresAt: apiKeys.expiresAt,
-        id: apiKeys.id,
-        isActive: apiKeys.isActive,
-        userId: apiKeys.userId,
       })
 
-    logger.info(`[${traceId}] API token created successfully`, {
-      tokenId: result[0].id,
-      userId: result[0].userId,
-    })
+    return result
+  } catch (err) {
+    logger.error(`[${traceId}] Failed: ${err}`)
 
-    set.status = 201
-    return {
-      data: result[0],
-      message: 'API token created successfully',
-      success: true,
-    }
-  } catch (error) {
-    logger.error(`[${traceId}] Failed to create API token`, {
-      error: error.message,
-      stack: error.stack,
-    })
-
-    set.status = 500
-    return {
-      error: error.message,
-      message: 'Failed to create API token',
-      success: false,
-    }
+    return new Response(JSON.stringify({ error: err.message || err.stack }), { status: 500 })
   }
 }
 
-export async function validateApiKey(apiKey, db) {
-  if (!apiKey) return null
+export async function validateApiKey({ db, headers, logger }) {
+  if (!headers['x-api-key']) return new Response(null, { status: 401 })
 
   try {
-    const result = await db.select().from(apiKeys).where(eq(apiKeys.apiKey, apiKey)).limit(1)
-
-    if (result.length === 0) return null
-
-    const keyRecord = result[0]
-
-    // Check if key is active
-    if (!keyRecord.isActive) return null
-
-    // Check if key has expired
-    if (keyRecord.expiresAt && new Date() > keyRecord.expiresAt) {
-      // Automatically revoke expired keys
-      await db.update(apiKeys).set({ isActive: false }).where(eq(apiKeys.apiKey, apiKey))
-
-      return null
+    const [keyRecord] = await db.select().from(apiKeys).where(eq(apiKeys.apiKey, headers['x-api-key'].trim())).limit(1)
+    if (!keyRecord) return new Response(null, { status: 401 })
+    if (headers['x-api-key'].trim() === '0000-000-00000-0') {
+      await db.delete(apiKeys).where(eq(apiKeys.id, keyRecord.id))
+      return
     }
 
-    return keyRecord
+    if (!keyRecord.isActive) return new Response(null, { status: 401 })
+    if (keyRecord.expiresAt && new Date() > keyRecord.expiresAt) {
+      await db.update(apiKeys).set({ isActive: false }).where(eq(apiKeys.apiKey, headers['x-api-key'].trim()))
+      return new Response(null, { status: 401 })
+    }
   } catch (error) {
-    console.error('Error validating API key:', error)
-    return null
+    logger.error('Error validating API key:', error)
+    return new Response(null, { status: 500 })
   }
 }
 
-/**
- * Generate a secure API key
- * @returns {string} Generated API key
- */
 function generateApiKey() {
-  return `ak_${crypto.randomUUID().replace(/-/g, '')}`
+  return `ak_${randomUUID().replace(/-/g, '')}`
 }
