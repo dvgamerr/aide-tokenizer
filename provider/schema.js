@@ -60,6 +60,7 @@ export const apiKeys = pgTable('api_keys', {
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
 export const reminder = pgTable('reminder', {
@@ -116,9 +117,9 @@ export const gold = stashSchema.table(
     toutIco: varchar('tout_ico', { length: 4 }),
     usdBuy: numeric('usd_buy').default('0'),
     usdSale: numeric('usd_sale').default('0'),
-    updateAt: timestamp('update_at', { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   },
-  (table) => [index('uq_update_at').on(table.updateAt)],
+  (table) => [index('uq_updated_at').on(table.updatedAt)],
 )
 
 export const lottery = stashSchema.table('lottery', {
