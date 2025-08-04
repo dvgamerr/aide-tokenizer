@@ -1,9 +1,9 @@
 import { swagger } from '@elysiajs/swagger'
 import { Elysia } from 'elysia'
 
+import { logger, PORT, userAgent, version } from '../provider/config'
 import db from '../provider/database'
 import setupGracefulShutdown from '../provider/graceful'
-import { logger, PORT, userAgent, version } from '../provider/helper'
 import queue from '../provider/queue'
 import handlerBotPushMessage from './handler/botname-push'
 import handlerBotWebhook from './handler/botname-webhook'

@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 
-import { logger, parseDatabaseUrl } from './helper'
+import { logger, parseDatabaseUrl } from './config'
 import * as schema from './schema'
 
 class DatabaseManager {
