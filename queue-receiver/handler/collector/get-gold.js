@@ -31,7 +31,7 @@ export default async ({ db, logger, query, store }) => {
   const currency = query?.currency || 'USD'
 
   const [goldReminder] = await db.execute(sql`SELECT r.note FROM reminder r WHERE name = 'gold'`)
-  let [market] = await db.execute(sql`SELECT * FROM stash.gold ORDER BY update_at DESC LIMIT 1`)
+  let [market] = await db.execute(sql`SELECT * FROM stash.gold ORDER BY updated_at DESC LIMIT 1`)
   if (!goldReminder) {
     await rebalanceGold({ deposit: 1, gold99: [{ oz: 1, usd: 0 }], wallet: 0 })
   }
@@ -70,6 +70,6 @@ export default async ({ db, logger, query, store }) => {
       tout_ico: market.tout_ico,
     },
     total: Math.round((costTotal + wallet) * (currency === 'THB' ? market.usd_buy : 1) * 100) / 100,
-    update_at: dayjs(market.update_at).fromNow(),
+    updated_at: dayjs(market.updated_at).fromNow(),
   }
 }

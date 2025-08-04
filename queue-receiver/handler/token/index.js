@@ -1,9 +1,14 @@
 import { Elysia, t } from 'elysia'
 
+import { handlerListTokens } from './list'
 import { handlerRevokeToken } from './revoke'
 import { handlerCreateToken, validateApiKey } from './token'
 
 const route = new Elysia({ prefix: '/v1' })
+
+route.get('/token', handlerListTokens, {
+  beforeHandle: validateApiKey,
+})
 
 route.post('/token', handlerCreateToken, {
   beforeHandle: validateApiKey,

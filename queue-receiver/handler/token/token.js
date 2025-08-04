@@ -42,6 +42,7 @@ export async function validateApiKey({ db, headers }) {
     await db.update(apiKeys).set({ isActive: false }).where(eq(apiKeys.apiKey, headers['x-api-key'].trim()))
     return new Response(null, { status: 401 })
   }
+  await db.update(apiKeys).set({ updatedAt: new Date() }).where(eq(apiKeys.apiKey, headers['x-api-key'].trim()))
 }
 
 function generateApiKey() {
