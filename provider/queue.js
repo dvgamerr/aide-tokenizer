@@ -2,86 +2,70 @@ import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 
-import { logger, parseDatabaseUrl } from './helper'
+import { logger, parseDatabaseUrl } from './config'
 
 export class QueueManager {
   constructor() {
-    this.db = null
-    this.client = null
     this.queueName = Bun.env.PG_QUEUE_NAME || 'notice'
     this.connString = Bun.env.PG_QUEUE_URL
   }
 
   async archive(traceId, msgId) {
     await this.init()
-    await this.db.execute(sql`SELECT pgmq.archive(${this.queueName}, ${msgId}::int);`)
-    logger.info(`[deleted:${traceId}] Id: ${msgId}`)
+    await this.db.execute(sql`SELECT pgmq.archive(${this.queueName}, ${msgId}::int)`)
+    logger.info(`Archived message ${msgId} [${traceId}]`)
   }
 
   async delete(traceId, msgId) {
     await this.init()
-    await this.db.execute(sql`SELECT pgmq.delete(${this.queueName}, ${msgId}::int);`)
-    logger.info(`[deleted:${traceId}] Id: ${msgId}`)
-    return
+    await this.db.execute(sql`SELECT pgmq.delete(${this.queueName}, ${msgId}::int)`)
+    logger.info(`Deleted message ${msgId} [${traceId}]`)
   }
 
   async init() {
-    if (!this.client) {
-      try {
-        this.client = postgres(this.connString)
-        this.db = drizzle({ client: this.client })
+    if (!this.db) {
+      this.client = postgres(this.connString)
+      this.db = drizzle({ client: this.client })
 
-        const list = await this.db.execute(sql`SELECT * FROM pgmq.list_queues() WHERE queue_name = ${this.queueName}`)
-        if (!list.length) {
-          logger.info(` - queue '${this.queueName}' is created`)
-          await this.db.execute(sql`SELECT * FROM pgmq.create(${this.queueName})`)
-        }
-        logger.info(` - queue '${parseDatabaseUrl(this.connString).database}' connected.`)
-      } catch (ex) {
-        logger.error(`Queue: ${ex}`)
-        process.exit(1)
+      const queues = await this.db.execute(sql`SELECT * FROM pgmq.list_queues() WHERE queue_name = ${this.queueName}`)
+      if (!queues.length) {
+        await this.db.execute(sql`SELECT * FROM pgmq.create(${this.queueName})`)
+        logger.info(`Queue '${this.queueName}' created`)
       }
+      logger.info(`Database '${parseDatabaseUrl(this.connString).database}' connected`)
     }
   }
 
   async process(handler, options = {}) {
     const { invisible = 10, limit = 10 } = options
+    const message = await this.read(limit, invisible)
 
-    try {
-      const payload = await this.read(limit, invisible)
-      if (!payload) return {}
+    if (!message) return {}
 
-      const result = await handler(payload)
+    const result = await handler(message)
 
-      if (!payload.headers.archive) {
-        await this.delete(payload.headers?.traceId, payload.msg_id)
-      } else {
-        await this.archive(payload.headers?.traceId, payload.msg_id)
-      }
-
-      return { message: payload, result }
-    } catch (ex) {
-      logger.error(`Queue error: ${ex}`)
-      process.exit(1)
+    if (message.headers?.archive) {
+      await this.archive(message.headers.traceId, message.msg_id)
+    } else {
+      await this.delete(message.headers?.traceId, message.msg_id)
     }
+
+    return { message, result }
   }
 
   async read(limit = 1, invisible = 1) {
     await this.init()
-
-    const [result] = await this.db.execute(
-      sql`SELECT * FROM pgmq.read(queue_name => ${this.queueName}, vt => ${invisible}::int, qty => ${limit}::int)`,
-    )
-    if (result) logger.info(`[  queue:${result.headers?.traceId}] Id: ${result.msg_id}`)
+    const [result] = await this.db.execute(sql`SELECT * FROM pgmq.read(${this.queueName}, ${invisible}::int, ${limit}::int)`)
+    if (result) logger.info(`Read message ${result.msg_id} [${result.headers?.traceId}]`)
     return result
   }
 
   async send(msg = [], headers = {}) {
     await this.init()
     const [result] = await this.db.execute(
-      sql`SELECT pgmq.send(queue_name => ${this.queueName}, msg => ${JSON.stringify(msg)}::jsonb, headers => ${JSON.stringify(headers)}::jsonb)`,
+      sql`SELECT pgmq.send(${this.queueName}, ${JSON.stringify(msg)}::jsonb, ${JSON.stringify(headers)}::jsonb)`,
     )
-    logger.info(`[ sended:${headers?.traceId}] Id: ${result.send}`)
+    logger.info(`Sent message ${result.send} [${headers?.traceId}]`)
     return result.send
   }
 }

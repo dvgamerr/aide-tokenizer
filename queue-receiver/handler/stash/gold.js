@@ -30,7 +30,7 @@ export default async ({ db }) => {
         tinIco: goldData.spot['tin-ico'],
         tout: goldData.spot.tout.toString(), // Convert to string for numeric type
         toutIco: goldData.spot['tout-ico'],
-        updateAt: new Date(goldData.update_date),
+        updatedAt: new Date(goldData.update_date),
         usdBuy: usdBuy.toString(), // Convert to string for numeric type
         usdSale: usdSale.toString(), // Convert to string for numeric type
       })
@@ -43,7 +43,7 @@ export default async ({ db }) => {
           tinIco: goldData.spot['tin-ico'],
           tout: goldData.spot.tout,
           toutIco: goldData.spot['tout-ico'],
-          updateAt: goldData.update_date,
+          updatedAt: goldData.update_date,
           usdBuy,
           usdSale,
         },

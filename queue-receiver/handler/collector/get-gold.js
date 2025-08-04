@@ -3,7 +3,8 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import { sql } from 'drizzle-orm'
 import numeral from 'numeral'
 
-import { gold, reminder } from '../../../provider/schema.js'
+import { gold } from '../../../provider/schema.js'
+import rebalanceGold from '../reminder/rebalance-gold.js'
 // import flexGoldMessage from '../../../provider/line/flex-gold'
 
 dayjs.extend(relativeTime)
@@ -24,15 +25,15 @@ const goldCalculator = (gold, market, key) =>
     .reduce((total, e) => total + e[key], 0)
 
 // export default async ({ db, headers, pkg, request, userAgent }) => {
-export const getGold = async ({ db, logger, query, store }) => {
+export default async ({ db, logger, query, store }) => {
   const traceId = store?.traceId
 
   const currency = query?.currency || 'USD'
 
   const [goldReminder] = await db.execute(sql`SELECT r.note FROM reminder r WHERE name = 'gold'`)
-  let [market] = await db.execute(sql`SELECT * FROM stash.gold ORDER BY update_at DESC LIMIT 1`)
+  let [market] = await db.execute(sql`SELECT * FROM stash.gold ORDER BY updated_at DESC LIMIT 1`)
   if (!goldReminder) {
-    await postGold({ deposit: 1, gold99: [{ oz: 1, usd: 0 }], wallet: 0 })
+    await rebalanceGold({ deposit: 1, gold99: [{ oz: 1, usd: 0 }], wallet: 0 })
   }
   if (!market) {
     market = { tin: '0', tin_ico: 'none', tout: '0', tout_ico: 'none', usd_buy: '33.5', usd_sale: '34.5' }
@@ -69,16 +70,6 @@ export const getGold = async ({ db, logger, query, store }) => {
       tout_ico: market.tout_ico,
     },
     total: Math.round((costTotal + wallet) * (currency === 'THB' ? market.usd_buy : 1) * 100) / 100,
-    update_at: dayjs(market.update_at).fromNow(),
+    updated_at: dayjs(market.updated_at).fromNow(),
   }
-}
-
-export const postGold = async ({ body, db }) => {
-  // Use Drizzle ORM for upsert operation
-  await db
-    .insert(reminder)
-    .values({ name: 'gold', note: body })
-    .onConflictDoUpdate({ set: { note: body }, target: reminder.name })
-
-  return { success: true }
 }

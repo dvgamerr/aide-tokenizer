@@ -1,9 +1,9 @@
 import numeral from 'numeral'
 
 import flexGoldMessage from '../../../provider/line/flex-gold'
-import { getGold as getCollectorGold } from '../../handler/collector/gold'
-import getStashGold from '../../handler/stash/gold'
 import pushMessage from '../botname-push'
+import getCollectorGold from '../collector/get-gold'
+import getStashGold from '../stash/gold'
 
 export default async (ctx) => {
   try {

@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 
-import { getAuthAPIKey } from '../../provider/helper'
+import { getAuthAPIKey } from '../../provider/config'
 import queue from '../../provider/queue'
 import { BadRequestError } from '../middleware'
 

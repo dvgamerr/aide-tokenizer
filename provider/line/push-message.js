@@ -1,5 +1,5 @@
 import { LINE_API } from '.'
-import { logger } from '../helper'
+import { logger } from '../config'
 
 export default async (accessToken, chatId, messages) => {
   const payload = {

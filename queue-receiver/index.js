@@ -1,15 +1,16 @@
 import { swagger } from '@elysiajs/swagger'
 import { Elysia } from 'elysia'
 
+import { logger, PORT, userAgent, version } from '../provider/config'
 import db from '../provider/database'
 import setupGracefulShutdown from '../provider/graceful'
-import { logger, PORT, userAgent, version } from '../provider/helper'
 import queue from '../provider/queue'
 import handlerBotPushMessage from './handler/botname-push'
 import handlerBotWebhook from './handler/botname-webhook'
 import handlerCollector from './handler/collector'
 import handlerCrontab from './handler/crontab'
 import handlerHealth from './handler/health'
+import handlerReminder from './handler/reminder'
 import handlerStash from './handler/stash'
 import { responseProvider } from './handler/swagger'
 import handlerToken from './handler/token'
@@ -42,17 +43,7 @@ app.get('/health', handlerHealth, {
   detail: {
     description: 'Returns a simple health check response to verify that the queue-receiver service is running and operational',
     responses: {
-      200: {
-        content: {
-          'text/plain': {
-            schema: {
-              example: '☕',
-              type: 'string',
-            },
-          },
-        },
-        description: 'Service is healthy',
-      },
+      200: { content: { 'text/plain': { schema: { example: '☕', type: 'string' } } }, description: 'Service is healthy' },
     },
     summary: 'Health check',
     tags: ['Health'],
@@ -81,9 +72,7 @@ app.post('/:channel/:botName', handlerBotWebhook, {
         in: 'path',
         name: 'channel',
         required: true,
-        schema: {
-          type: 'string',
-        },
+        schema: { type: 'string' },
       },
       {
         description: 'Bot name identifier for routing webhook events',
@@ -101,28 +90,11 @@ app.post('/:channel/:botName', handlerBotWebhook, {
   },
 })
 
-app.use(handlerToken)
 app.use(handlerCollector)
-app.use(handlerStash)
 app.use(handlerCrontab)
-
-// // Define stash routes
-// const stash = new Elysia({ prefix: '/stash' })
-// stash.post('/cinema', handlerStashCinema)
-// stash.post('/gold', handlerStashGold)
-// app.use(stash)
-
-// // Define crontab routes
-// const crontab = new Elysia({ prefix: '/crontab' })
-// crontab.put('/cinema/:flexType', handlerCrontabCinema, {
-//   beforeHandle: validateAuthLine.beforeHandle,
-//   params: t.Object({
-//     flexType: t.Enum({ weekly: 'weekly', day: 'day' }),
-//   }),
-// })
-// crontab.put('/gold', handlerCrontabGold, validateAuthLine)
-// crontab.get('/gold', handlerCrontabGold, validateAuthLine)
-// app.use(crontab)
+app.use(handlerReminder)
+app.use(handlerStash)
+app.use(handlerToken)
 
 // Setup graceful shutdown handlers
 setupGracefulShutdown(app, stmt, logger)

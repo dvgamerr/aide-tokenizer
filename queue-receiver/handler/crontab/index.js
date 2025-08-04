@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia'
 
-import cinema from './cinema'
-import gold from './gold'
+import cinema from './cinema-line-card'
+import gold from './gold-line-flex'
 
 const route = new Elysia({
   detail: {

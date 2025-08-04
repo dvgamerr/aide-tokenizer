@@ -1,54 +1,45 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 
-import { logger, parseDatabaseUrl } from './helper'
+import { logger, parseDatabaseUrl } from './config'
 import * as schema from './schema'
 
 class DatabaseManager {
   constructor() {
-    this.db = null
     this.client = null
-    this.isConnected = false
+    this.db = null
     this.connString = Bun.env.PG_MAIN_URL
+    if (!this.connString) {
+      throw new Error('PG_MAIN_URL environment variable is required')
+    }
   }
 
   async connect() {
-    if (this.isConnected && this.db) {
-      return this.db
-    }
+    if (this.db) return this.db
 
     try {
       this.client = postgres(this.connString)
       this.db = drizzle({ client: this.client }, { schema })
-
       await this.db.execute('SELECT 1')
-      this.isConnected = true
       logger.info(` - database '${parseDatabaseUrl(this.connString).database}' connected`)
-
       return this.db
     } catch (ex) {
       logger.error(`Database connection failed: ${ex}`)
-      this.isConnected = false
       process.exit(1)
     }
   }
 
   async disconnect() {
-    if (this.client) {
-      await this.client.end()
-      this.client = null
-      this.db = null
-      this.isConnected = false
-      logger.info('Database disconnected')
-    }
+    if (!this.client) return
+    await this.client.end()
+    this.client = this.db = null
+    logger.info('Database disconnected')
   }
 
   status() {
-    return this.isConnected
+    return !!this.db
   }
 }
 
-const db = new DatabaseManager()
-
+export default new DatabaseManager()
 export { DatabaseManager }
-export default db

@@ -1,8 +1,8 @@
 import { sleepSync } from 'bun'
 
 import { version } from '../package.json'
+import { logger } from '../provider/config'
 import setupGracefulShutdown from '../provider/graceful'
-import { logger } from '../provider/helper'
 import flexChatId from '../provider/line/flex-id'
 import pushMessage from '../provider/line/push-message'
 import queue from '../provider/queue'

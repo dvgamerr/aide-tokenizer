@@ -1,5 +1,5 @@
 import { LINE_API } from '.'
-import { logger } from '../helper'
+import { logger } from '../config'
 
 export default async (accessToken, userId) => {
   const response = await fetch(`${LINE_API}/profile/${userId}`, {

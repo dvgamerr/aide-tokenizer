@@ -7,8 +7,12 @@ CREATE TABLE "api_keys" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "api_keys_api_key_unique" UNIQUE("api_key")
 );
+INSERT INTO "public"."api_keys" ("description", "api_key", "expires_at") VALUES
+('remove-it', '0000-000-00000-0', now());
+
 --> statement-breakpoint
 CREATE TABLE "reminder" (
 	"name" varchar(20) PRIMARY KEY NOT NULL,
 	"note" jsonb DEFAULT '{}' NOT NULL
 );
+

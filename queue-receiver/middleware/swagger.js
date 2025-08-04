@@ -1,6 +1,5 @@
 import { version } from '../../package.json'
 
-// Swagger documentation configuration
 export const swaggerConfig = {
   documentation: {
     components: {
