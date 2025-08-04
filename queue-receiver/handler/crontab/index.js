@@ -2,6 +2,7 @@ import { Elysia } from 'elysia'
 
 import cinema from './cinema-line-card'
 import gold from './gold-line-flex'
+import weather from './weather-today'
 
 const route = new Elysia({
   detail: {
@@ -23,6 +24,13 @@ route.get('/gold', gold, {
   detail: {
     description: 'Fetches current gold prices and calculates investment profit/loss.',
     summary: 'Send LINE Flex for gold prices',
+    tags: ['Crontab'],
+  },
+})
+route.get('/weather-today', weather, {
+  detail: {
+    description: 'Fetches current weather information and forecast for today.',
+    summary: 'Send LINE Flex for weather today',
     tags: ['Crontab'],
   },
 })

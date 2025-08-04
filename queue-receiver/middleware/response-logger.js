@@ -1,4 +1,4 @@
-export const responseLogger = ({ code, path, status, store }, logger) => {
+export const responseLogger = ({ code, path, request, response, status, store }, logger) => {
   if (path === '/health') return
 
   const traceId = store?.traceId
@@ -6,5 +6,5 @@ export const responseLogger = ({ code, path, status, store }, logger) => {
   const errorMsg = isError ? ` |${status?.code || status?.message?.replace('Error: ', '') || 'Error'}| ` : ' '
   const duration = Math.round(performance.now() / 1000)
 
-  logger[isError ? 'warn' : 'info'](`[${traceId}] [${code}] ${path}${errorMsg}${duration}ms`)
+  logger[isError ? 'warn' : 'info'](`[${traceId}] [${code || response?.status || request.method}] ${path}${errorMsg}${duration}ms`)
 }
