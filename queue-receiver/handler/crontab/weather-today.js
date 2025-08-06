@@ -18,6 +18,12 @@ export default async (ctx) => {
     const response = await fetch(`${apiUrl}?${params}`)
     const data = await response.json()
 
+    const pm25Values = data.hourly.pm2_5
+    const hasHighPM25 = pm25Values.some((value) => value >= 35)
+    if (!hasHighPM25) {
+      logger.info(`[${store?.traceId}] pm 2.5 safty`)
+      return new Response(null, { status: 204 })
+    }
     const invoke = await predictrionWeather(Object.assign(ctx, { body: { pm2_5: data.hourly.pm2_5 } }))
 
     logger.info(`[${store?.traceId}] prediction ${invoke.cost}`)
