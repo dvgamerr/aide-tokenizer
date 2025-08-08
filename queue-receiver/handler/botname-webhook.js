@@ -195,7 +195,7 @@ export default async ({ body, db, headers, logger, params, queue, store }) => {
     logger.debug(`[${traceId}] [${params.botName}] sessionId: ${sessionId}`)
 
     // ประมวลผล events
-    const { active, messages, timestamp } = await processEvents(db, queue, body.events, {
+    const { active, messages } = await processEvents(db, queue, body.events, {
       accessToken,
       chatId,
       chatType,
@@ -207,10 +207,10 @@ export default async ({ body, db, headers, logger, params, queue, store }) => {
       traceId,
     })
 
-    // ส่งข้อความถ้า user active และมีข้อความ
-    if (isActive && messages.length) {
-      await queue.send(messages, { ...cacheToken, botName: params.botName, chatId, chatType, sessionId, timestamp })
-    }
+    // // ส่งข้อความถ้า user active และมีข้อความ
+    // if (isActive && messages.length) {
+    //   await queue.send(messages, { ...cacheToken, botName: params.botName, chatId, chatType, sessionId, timestamp })
+    // }
 
     logger.debug(`[${traceId}] [${params.botName}] Active: ${active ? active : isActive} (${messages.length})`)
     return new Response(null, { status: 201 })
