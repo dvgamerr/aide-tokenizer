@@ -130,3 +130,12 @@ export const lottery = stashSchema.table('lottery', {
   backTwo: varchar('back_two', { length: 2 }).array(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
+
+export const lotteryPredict = stashSchema.table('lottery_predict', {
+  draw: date('draw').primaryKey(),
+  firstPrize: varchar('first_prize', { length: 6 }).array(),
+  frontThree: varchar('front_three', { length: 3 }).array(),
+  backThree: varchar('back_three', { length: 3 }).array(),
+  backTwo: varchar('back_two', { length: 2 }).array(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
