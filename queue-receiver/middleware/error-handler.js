@@ -16,3 +16,11 @@ export class BadRequestError extends Error {
     this.status = status
   }
 }
+
+export class InternalError extends Error {
+  constructor(message) {
+    super(message)
+    this.code = 'INTERNAL_ERROR'
+    this.status = 500
+  }
+}

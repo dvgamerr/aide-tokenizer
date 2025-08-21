@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia'
 
+import lottery from './lottery-history'
 import weather from './weather-daily'
 
 const route = new Elysia({
@@ -14,6 +15,14 @@ route.post('/weather-daily', weather, {
   detail: {
     description: 'Fetches daily weather information and predictions for automated processing.',
     summary: 'Get daily weather predictions',
+    tags: ['Prediction'],
+  },
+})
+
+route.post('/lottery', lottery, {
+  detail: {
+    description: '',
+    summary: '',
     tags: ['Prediction'],
   },
 })
