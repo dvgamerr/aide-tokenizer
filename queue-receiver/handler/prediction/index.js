@@ -25,6 +25,7 @@ route.post('/lottery', lottery, {
     summary: '',
     tags: ['Prediction'],
   },
+  timeout: 180000,
 })
 
 export default route
