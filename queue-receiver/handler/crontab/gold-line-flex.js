@@ -12,6 +12,9 @@ export default async (ctx) => {
 
     // Fetch gold price data from collector
     const collector = await getCollectorGold(ctx)
+    if (collector.total === 0) {
+      return new Response(null, { status: 204 })
+    }
 
     const trands = collector.spot.tout_ico === 'up' ? 'เพิ่มขึ้น' : 'ลดลง'
     const payload = {
